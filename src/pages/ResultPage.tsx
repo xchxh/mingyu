@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   calculateFullBaziChart,
@@ -10,9 +10,7 @@ import {
 } from '@/lib/full-chart-engine';
 import { buildAnalysisPayloadV1 } from '@/lib/iztro/build-analysis-payload';
 import {
-  buildHoroscope,
   getDefaultHoroscopeContext,
-  shiftLocalDate,
 } from '@/lib/iztro/runtime-helpers';
 import {
   buildDecadalTimelineOptions,
@@ -21,6 +19,7 @@ import {
 } from '@/lib/iztro/decadal';
 import {
   buildResultSearch,
+  buildInputSearch,
   defaultPromptState,
   parseInputState,
   parsePromptState,
@@ -35,25 +34,19 @@ import {
   shouldShowPromptShareButton,
 } from '@/lib/prompt-page-rules';
 import { PageTopbar } from '@/components/PageTopbar';
+import { QuestionInspirationModal } from '@/components/QuestionInspirationModal';
 import { uniqueNonEmptyStrings } from '@/lib/array-utils';
 import type { AnalysisPayloadV1, PalaceFact } from '@/types/analysis';
 import type { BaziChartResult } from '@/utils/bazi/baziTypes';
 import type { ScopeType } from '@/types/analysis';
 import type { BaziFortuneSelectionValue } from '@/utils/bazi/fortuneSelection';
+import type { ChartInput } from '@/types/chart';
 
 type ZiweiRuntimeState = Awaited<ReturnType<typeof calculateFullZiweiChart>> | null;
+type ZiweiPayloadByScopeState = Record<ScopeType, AnalysisPayloadV1> | null;
 type PromptEngineModule = typeof import('@/lib/prompt-engine');
 type BaziFortuneSelectionModule = typeof import('@/utils/bazi/fortuneSelection');
-type PromptShortcutMode =
-  | '综合'
-  | '事业'
-  | '财运'
-  | '婚恋'
-  | '子女'
-  | '六亲'
-  | '健康'
-  | '学业'
-  | '自定义';
+type PromptShortcutMode = string;
 type InspirationCategory = '全部' | '事业' | '财运' | '婚恋' | '子女' | '六亲' | '健康';
 
 const LazyBaziFortuneSelector = lazy(async () => {
@@ -180,6 +173,24 @@ const baziSingleShortcutActions = [
   },
 ] as const;
 
+const baziCompatibilityShortcutActions = [
+  {
+    label: '合婚' as const,
+    promptId: 'ai-compat-marriage',
+    question: '请重点分析我们两人的婚恋匹配度、长期磨合点和相处建议。',
+  },
+  {
+    label: '合伙' as const,
+    promptId: 'ai-compat-career',
+    question: '请重点分析我们两人的合作模式、分工建议和利益风险。',
+  },
+  {
+    label: '友情' as const,
+    promptId: 'ai-compat-friendship',
+    question: '请重点分析我们两人的相处默契、冲突点和关系建议。',
+  },
+] as const;
+
 const ziweiSingleShortcutActions = [
   {
     label: '综合' as const,
@@ -231,6 +242,24 @@ const ziweiSingleShortcutActions = [
   },
 ] as const;
 
+const ziweiCompatibilityShortcutActions = [
+  {
+    label: '感情' as const,
+    topic: 'relationship',
+    question: '请重点分析双方关系匹配度、吸引点、冲突点和相处建议。',
+  },
+  {
+    label: '合作' as const,
+    topic: 'career-wealth',
+    question: '请重点分析双方合作默契、优势互补和潜在风险。',
+  },
+  {
+    label: '相处' as const,
+    topic: 'chat',
+    question: '请从双方盘面看互动模式、沟通盲点和长期建议。',
+  },
+] as const;
+
 const ziweiScopeLabelMap: Record<ZiweiScopeMode, string> = {
   origin: '本命',
   decadal: '大限',
@@ -241,6 +270,108 @@ const ziweiScopeLabelMap: Record<ZiweiScopeMode, string> = {
 };
 
 const ZIWEI_GRID_ORDER = [3, 4, 5, 6, 2, 'center', 'center-skip', 7, 1, 'center-skip', 'center-skip', 8, 0, 11, 10, 9] as const;
+const PROMPT_DRAFT_STORAGE_PREFIX = 'result-prompt-draft';
+
+function readPromptDraft(storageKey: string) {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    return window.localStorage.getItem(storageKey) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writePromptDraft(storageKey: string, value: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    if (value.trim()) {
+      window.localStorage.setItem(storageKey, value);
+      return;
+    }
+
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    // 忽略本地存储异常，避免影响结果页主流程。
+  }
+}
+
+function getBaziShortcutActions(analysisMode: 'single' | 'compatibility') {
+  return analysisMode === 'compatibility'
+    ? baziCompatibilityShortcutActions
+    : baziSingleShortcutActions;
+}
+
+function getZiweiShortcutActions(analysisMode: 'single' | 'compatibility') {
+  return analysisMode === 'compatibility'
+    ? ziweiCompatibilityShortcutActions
+    : ziweiSingleShortcutActions;
+}
+
+function findBaziShortcutByMode(
+  mode: string,
+  analysisMode: 'single' | 'compatibility',
+) {
+  return getBaziShortcutActions(analysisMode).find((item) => item.label === mode) ?? null;
+}
+
+function findZiweiShortcutByMode(
+  mode: string,
+  analysisMode: 'single' | 'compatibility',
+) {
+  return getZiweiShortcutActions(analysisMode).find((item) => item.label === mode) ?? null;
+}
+
+function resolveBaziShortcutMode(
+  promptState: QueryPromptState,
+  analysisMode: 'single' | 'compatibility',
+) {
+  if (findBaziShortcutByMode(promptState.baziShortcutMode, analysisMode)) {
+    return promptState.baziShortcutMode;
+  }
+
+  if (analysisMode === 'compatibility') {
+    return (
+      baziCompatibilityShortcutActions.find((item) => item.promptId === promptState.baziPresetId)?.label ??
+      '自定义'
+    );
+  }
+
+  const matched = getBaziShortcutActions(analysisMode).find(
+    (item) =>
+      item.promptId === promptState.baziPresetId &&
+      item.question === promptState.baziQuickQuestion,
+  );
+  return matched?.label ?? '自定义';
+}
+
+function resolveZiweiShortcutMode(
+  promptState: QueryPromptState,
+  analysisMode: 'single' | 'compatibility',
+) {
+  if (findZiweiShortcutByMode(promptState.ziweiShortcutMode, analysisMode)) {
+    return promptState.ziweiShortcutMode;
+  }
+
+  if (analysisMode === 'compatibility') {
+    return (
+      ziweiCompatibilityShortcutActions.find((item) => item.topic === promptState.ziweiTopic)?.label ??
+      '自定义'
+    );
+  }
+
+  const matched = getZiweiShortcutActions(analysisMode).find(
+    (item) =>
+      item.topic === promptState.ziweiTopic &&
+      item.question === promptState.ziweiQuickQuestion,
+  );
+  return matched?.label ?? '自定义';
+}
 
 function buildCombinedPromptText(system: string, user: string) {
   return [system, '', user].join('\n');
@@ -609,6 +740,45 @@ function PromptPreSkeleton() {
   );
 }
 
+function ZiweiBoardSkeleton(props: {
+  title: string;
+  name: string;
+}) {
+  return (
+    <section className="result-showcase-card ziwei-showcase-card ziwei-board-skeleton">
+      <div className="result-showcase-head">
+        <div>
+          <p className="result-section-kicker">{props.title}</p>
+          <h2>{props.name}</h2>
+        </div>
+        <div className="result-chip-row" aria-hidden="true">
+          <span className="skeleton-block ziwei-board-skeleton-chip" />
+          <span className="skeleton-block ziwei-board-skeleton-chip" />
+          <span className="skeleton-block ziwei-board-skeleton-chip ziwei-board-skeleton-chip-short" />
+        </div>
+      </div>
+
+      <div className="result-summary-grid" aria-hidden="true">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div className="result-stat-card" key={index}>
+            <span className="skeleton-block ziwei-board-skeleton-line ziwei-board-skeleton-line-short" />
+            <span className="skeleton-block ziwei-board-skeleton-line" />
+            <span className="skeleton-block ziwei-board-skeleton-line ziwei-board-skeleton-line-short" />
+          </div>
+        ))}
+      </div>
+
+      <div className="ziwei-layout" aria-hidden="true">
+        <div className="ziwei-board-skeleton-panel ziwei-board-skeleton-main" />
+        <div className="ziwei-side-panel">
+          <div className="ziwei-board-skeleton-panel ziwei-board-skeleton-side" />
+          <div className="ziwei-board-skeleton-panel ziwei-board-skeleton-side" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ZiweiScopeModal(props: {
   selectedScope: ZiweiScopeMode;
   onApply: (scope: ZiweiScopeMode) => void;
@@ -669,12 +839,13 @@ function ZiweiScopeModal(props: {
 }
 
 function ZiweiFortuneSelector(props: {
+  chartInput: ChartInput;
   runtime: NonNullable<ZiweiRuntimeState>;
   selectedScope: ScopeType;
   selectedDateStr: string;
   onSelectScopeDate: (scope: ScopeType, dateStr: string) => void;
 }) {
-  const { runtime, selectedScope, selectedDateStr, onSelectScopeDate } = props;
+  const { chartInput, runtime, selectedScope, selectedDateStr, onSelectScopeDate } = props;
   const defaultContext = useMemo(() => getDefaultHoroscopeContext(), []);
   const originPayload = runtime.payloadByScope.origin;
   const birthSolarDate = originPayload.basic_info.solar_date;
@@ -689,70 +860,122 @@ function ZiweiFortuneSelector(props: {
   const [selectedDecadalIndex, setSelectedDecadalIndex] = useState(
     Math.max(0, decadalOptions.findIndex((item) => item === initialDecadal)),
   );
-
   const selectedDecadal = decadalOptions[selectedDecadalIndex] ?? decadalOptions[0];
-  const yearOptions = useMemo(() => {
-    if (!selectedDecadal) return [];
-    const items: Array<{
-      year: number;
-      age: number;
-      dateStr: string;
-      label: string;
-      ganZhi: string;
-    }> = [];
+  const [selectedYearDateStr, setSelectedYearDateStr] = useState(selectedDateStr);
+  const [selectedMonthDateStr, setSelectedMonthDateStr] = useState(selectedDateStr);
+  const [yearOptions, setYearOptions] = useState<Array<{
+    year: number;
+    age: number;
+    dateStr: string;
+    label: string;
+    ganZhi: string;
+  }>>([]);
+  const [monthOptions, setMonthOptions] = useState<Array<{
+    month: number;
+    dateStr: string;
+    label: string;
+    ganZhi: string;
+  }>>([]);
+  const [dayOptions, setDayOptions] = useState<Array<{
+    day: number;
+    dateStr: string;
+    label: string;
+    ganZhi: string;
+  }>>([]);
+  const [isFortuneOptionsLoading, setIsFortuneOptionsLoading] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
 
-    for (let age = selectedDecadal.startAge; age <= selectedDecadal.endAge; age += 1) {
-      const dateStr = shiftLocalDate(birthSolarDate, age - 1, 'year');
-      const horoscope = buildHoroscope(runtime.astrolabe, dateStr, defaultContext.hourIndex);
-      items.push({
-        year: getDateParts(dateStr).year,
-        age,
-        dateStr,
-        label: horoscope.yearly.name || `${getDateParts(dateStr).year}`,
-        ganZhi: `${horoscope.yearly.heavenlyStem}${horoscope.yearly.earthlyBranch}`,
-      });
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../workers/ziwei-fortune-options.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!workerRef.current) {
+      return;
     }
 
-    return items;
-  }, [birthSolarDate, defaultContext.hourIndex, runtime.astrolabe, selectedDecadal]);
+    const requestId = `${selectedDecadalIndex}-${selectedYearDateStr}-${selectedMonthDateStr}-${Date.now()}`;
+    setIsFortuneOptionsLoading(true);
 
-  const [selectedYearDateStr, setSelectedYearDateStr] = useState(selectedDateStr);
-  const selectedYearItem =
-    yearOptions.find((item) => item.dateStr === selectedYearDateStr) ?? yearOptions[0];
+    workerRef.current.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      yearOptions?: Array<{
+        year: number;
+        age: number;
+        dateStr: string;
+        label: string;
+        ganZhi: string;
+      }>;
+      monthOptions?: Array<{
+        month: number;
+        dateStr: string;
+        label: string;
+        ganZhi: string;
+      }>;
+      dayOptions?: Array<{
+        day: number;
+        dateStr: string;
+        label: string;
+        ganZhi: string;
+      }>;
+      effectiveYearDateStr?: string;
+      effectiveMonthDateStr?: string;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
 
-  const monthOptions = useMemo(() => {
-    if (!selectedYearItem) return [];
-    const { year } = getDateParts(selectedYearItem.dateStr);
-    return Array.from({ length: 12 }, (_, index) => {
-      const dateStr = `${year}-${String(index + 1).padStart(2, '0')}-15`;
-      const horoscope = buildHoroscope(runtime.astrolabe, dateStr, defaultContext.hourIndex);
-      return {
-        month: index + 1,
-        dateStr,
-        label: horoscope.monthly.name || `${index + 1}月`,
-        ganZhi: `${horoscope.monthly.heavenlyStem}${horoscope.monthly.earthlyBranch}`,
-      };
+      if (event.data.ok) {
+        setYearOptions(event.data.yearOptions ?? []);
+        setMonthOptions(event.data.monthOptions ?? []);
+        setDayOptions(event.data.dayOptions ?? []);
+        if (event.data.effectiveYearDateStr) {
+          setSelectedYearDateStr(event.data.effectiveYearDateStr);
+        }
+        if (event.data.effectiveMonthDateStr) {
+          setSelectedMonthDateStr(event.data.effectiveMonthDateStr);
+        }
+      } else {
+        setYearOptions([]);
+        setMonthOptions([]);
+        setDayOptions([]);
+      }
+
+      setIsFortuneOptionsLoading(false);
+    };
+
+    workerRef.current.postMessage({
+      id: requestId,
+      input: chartInput,
+      birthSolarDate,
+      hourIndex: defaultContext.hourIndex,
+      selectedDecadal: selectedDecadal
+        ? {
+            startAge: selectedDecadal.startAge,
+            endAge: selectedDecadal.endAge,
+            dateStr: selectedDecadal.dateStr,
+          }
+        : null,
+      selectedYearDateStr,
+      selectedMonthDateStr,
     });
-  }, [defaultContext.hourIndex, runtime.astrolabe, selectedYearItem]);
-
-  const [selectedMonthDateStr, setSelectedMonthDateStr] = useState(selectedDateStr);
-  const selectedMonthItem =
-    monthOptions.find((item) => item.dateStr === selectedMonthDateStr) ?? monthOptions[0];
-
-  const dayOptions = useMemo(() => {
-    if (!selectedMonthItem) return [];
-    const { year, month } = getDateParts(selectedMonthItem.dateStr);
-    return Array.from({ length: getDaysInMonth(year, month) }, (_, index) => {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
-      const horoscope = buildHoroscope(runtime.astrolabe, dateStr, defaultContext.hourIndex);
-      return {
-        day: index + 1,
-        dateStr,
-        label: formatMonthDayLabel(dateStr),
-        ganZhi: `${horoscope.daily.heavenlyStem}${horoscope.daily.earthlyBranch}`,
-      };
-    });
-  }, [defaultContext.hourIndex, runtime.astrolabe, selectedMonthItem]);
+  }, [
+    birthSolarDate,
+    chartInput,
+    defaultContext.hourIndex,
+    selectedDecadal,
+    selectedDecadalIndex,
+    selectedMonthDateStr,
+    selectedYearDateStr,
+  ]);
 
   useEffect(() => {
     if (selectedDecadal && !yearOptions.some((item) => item.dateStr === selectedYearDateStr)) {
@@ -760,11 +983,18 @@ function ZiweiFortuneSelector(props: {
     }
   }, [selectedDecadal, selectedYearDateStr, yearOptions]);
 
+  const selectedYearItem =
+    yearOptions.find((item) => item.dateStr === selectedYearDateStr) ?? yearOptions[0];
+
   useEffect(() => {
     if (selectedYearItem && !monthOptions.some((item) => item.dateStr === selectedMonthDateStr)) {
       setSelectedMonthDateStr(monthOptions[0]?.dateStr ?? selectedYearItem.dateStr);
     }
   }, [monthOptions, selectedMonthDateStr, selectedYearItem]);
+
+  if (isFortuneOptionsLoading && yearOptions.length === 0 && monthOptions.length === 0 && dayOptions.length === 0) {
+    return <BaziFortuneLoadingCard />;
+  }
 
   return (
     <section className="fortune-selector-card fortune-selector-card-ziwei">
@@ -880,7 +1110,7 @@ function ZiweiFortuneSelector(props: {
   );
 }
 
-function BaziChartBoard(props: {
+const BaziChartBoard = memo(function BaziChartBoard(props: {
   title: string;
   name: string;
   result: BaziChartResult;
@@ -1068,34 +1298,24 @@ function BaziChartBoard(props: {
       </div>
     </section>
   );
-}
+});
 
-function ZiweiBoard(props: {
+const ZiweiBoard = memo(function ZiweiBoard(props: {
   title: string;
   name: string;
   payload: AnalysisPayloadV1;
+  chartInput: ChartInput;
   runtime: NonNullable<ZiweiRuntimeState>;
 }) {
-  const { title, name, payload, runtime } = props;
+  const { title, name, payload, chartInput, runtime } = props;
   const defaultContext = useMemo(() => getDefaultHoroscopeContext(), []);
   const [selectedScope, setSelectedScope] = useState<ScopeType>(payload.active_scope.scope);
   const [selectedDateStr, setSelectedDateStr] = useState(payload.active_scope.solar_date);
   const [selectedHourIndex] = useState(defaultContext.hourIndex);
-  const selectedHoroscope = useMemo(
-    () => buildHoroscope(runtime.astrolabe, selectedDateStr, selectedHourIndex),
-    [runtime.astrolabe, selectedDateStr, selectedHourIndex],
-  );
-  const displayPayload = useMemo(
-    () =>
-      buildAnalysisPayloadV1({
-        astrolabe: runtime.astrolabe,
-        horoscope: selectedHoroscope,
-        currentScope: selectedScope,
-      }),
-    [runtime.astrolabe, selectedHoroscope, selectedScope],
-  );
+  const [displayPayload, setDisplayPayload] = useState(payload);
+  const [isDisplayPayloadLoading, setIsDisplayPayloadLoading] = useState(false);
   const [selectedPalaceIndex, setSelectedPalaceIndex] = useState(
-    displayPayload.active_scope.palace_index ?? displayPayload.palaces[0]?.index ?? 0,
+    payload.active_scope.palace_index ?? payload.palaces[0]?.index ?? 0,
   );
   const selectedPalace =
     displayPayload.palaces.find((item) => item.index === selectedPalaceIndex) ??
@@ -1119,7 +1339,60 @@ function ZiweiBoard(props: {
   useEffect(() => {
     setSelectedScope(payload.active_scope.scope);
     setSelectedDateStr(payload.active_scope.solar_date);
+    setDisplayPayload(payload);
   }, [payload.active_scope.scope, payload.active_scope.solar_date]);
+
+  useEffect(() => {
+    if (
+      selectedScope === payload.active_scope.scope &&
+      selectedDateStr === payload.active_scope.solar_date
+    ) {
+      setDisplayPayload(payload);
+      setIsDisplayPayloadLoading(false);
+      return;
+    }
+
+    const worker = new Worker(new URL('../workers/ziwei-display.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const requestId = `${selectedScope}-${selectedDateStr}-${Date.now()}`;
+
+    setIsDisplayPayloadLoading(true);
+
+    worker.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      payload?: AnalysisPayloadV1;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok && event.data.payload) {
+        setDisplayPayload(event.data.payload);
+      }
+      setIsDisplayPayloadLoading(false);
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      id: requestId,
+      input: chartInput,
+      dateStr: selectedDateStr,
+      hourIndex: selectedHourIndex,
+      scope: selectedScope,
+    });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [
+    chartInput,
+    payload,
+    selectedDateStr,
+    selectedHourIndex,
+    selectedScope,
+  ]);
 
   useEffect(() => {
     setSelectedPalaceIndex(
@@ -1165,13 +1438,22 @@ function ZiweiBoard(props: {
       </div>
 
       <div className="ziwei-layout">
-        <ZiweiTraditionalBoard
-          payload={displayPayload}
-          boardTitle="传统盘"
-          name={name}
-          selectedPalaceIndex={selectedPalaceIndex}
-          onSelectPalace={setSelectedPalaceIndex}
-        />
+        <div className="ziwei-board-stack">
+          <ZiweiTraditionalBoard
+            payload={displayPayload}
+            boardTitle="传统盘"
+            name={name}
+            selectedPalaceIndex={selectedPalaceIndex}
+            onSelectPalace={setSelectedPalaceIndex}
+          />
+          {isDisplayPayloadLoading ? (
+            <div className="ziwei-board-loading-mask" aria-hidden="true">
+              <span className="skeleton-block ziwei-board-loading-pill" />
+              <span className="skeleton-block ziwei-board-loading-line" />
+              <span className="skeleton-block ziwei-board-loading-line ziwei-board-loading-line-short" />
+            </div>
+          ) : null}
+        </div>
 
         <div className="ziwei-side-panel">
           <div className="ziwei-focus-card ziwei-summary-card">
@@ -1262,6 +1544,7 @@ function ZiweiBoard(props: {
           </div>
 
           <ZiweiFortuneSelector
+            chartInput={chartInput}
             runtime={runtime}
             selectedScope={selectedScope}
             selectedDateStr={selectedDateStr}
@@ -1274,7 +1557,7 @@ function ZiweiBoard(props: {
       </div>
     </section>
   );
-}
+});
 
 async function shareText(text: string) {
   if (navigator.share) {
@@ -1290,8 +1573,17 @@ async function shareText(text: string) {
 export function ResultPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const inputState = useMemo(() => parseInputState(searchParams), [searchParams]);
+  const inputSearch = useMemo(() => buildInputSearch(searchParams), [searchParams]);
+  const inputState = useMemo(() => parseInputState(new URLSearchParams(inputSearch)), [inputSearch]);
   const promptState = useMemo(() => parsePromptState(searchParams), [searchParams]);
+  const baziDraftStorageKey = useMemo(
+    () => `${PROMPT_DRAFT_STORAGE_PREFIX}:bazi:${inputSearch}`,
+    [inputSearch],
+  );
+  const ziweiDraftStorageKey = useMemo(
+    () => `${PROMPT_DRAFT_STORAGE_PREFIX}:ziwei:${inputSearch}`,
+    [inputSearch],
+  );
   const shouldLoadBaziPromptModules =
     promptState.tab === 'prompt' && promptState.promptSource === 'bazi';
   const [baziResult, setBaziResult] = useState<BaziChartResult | null>(null);
@@ -1299,13 +1591,38 @@ export function ResultPage() {
   const [baziError, setBaziError] = useState('');
   const [ziweiRuntime, setZiweiRuntime] = useState<ZiweiRuntimeState>(null);
   const [partnerZiweiRuntime, setPartnerZiweiRuntime] = useState<ZiweiRuntimeState>(null);
+  const [ziweiPayloadByScope, setZiweiPayloadByScope] = useState<ZiweiPayloadByScopeState>(null);
+  const [partnerZiweiPayloadByScope, setPartnerZiweiPayloadByScope] =
+    useState<ZiweiPayloadByScopeState>(null);
   const [ziweiError, setZiweiError] = useState('');
   const [shareState, setShareState] = useState('分享');
   const [copyState, setCopyState] = useState('复制');
   const [isBaziFortuneModalOpen, setIsBaziFortuneModalOpen] = useState(false);
   const [isZiweiScopeModalOpen, setIsZiweiScopeModalOpen] = useState(false);
-  const [activeBaziShortcutMode, setActiveBaziShortcutMode] = useState<PromptShortcutMode>('自定义');
-  const [activeZiweiShortcutMode, setActiveZiweiShortcutMode] = useState<PromptShortcutMode>('自定义');
+  const [activeBaziShortcutMode, setActiveBaziShortcutMode] = useState<PromptShortcutMode>(() =>
+    resolveBaziShortcutMode(promptState, inputState.analysisMode),
+  );
+  const [activeZiweiShortcutMode, setActiveZiweiShortcutMode] = useState<PromptShortcutMode>(() =>
+    resolveZiweiShortcutMode(promptState, inputState.analysisMode),
+  );
+  const [baziQuestionDraft, setBaziQuestionDraft] = useState(() => {
+    const mode = resolveBaziShortcutMode(promptState, inputState.analysisMode);
+    return (
+      readPromptDraft(baziDraftStorageKey) ||
+      promptState.baziQuickQuestion ||
+      findBaziShortcutByMode(mode, inputState.analysisMode)?.question ||
+      ''
+    );
+  });
+  const [ziweiQuestionDraft, setZiweiQuestionDraft] = useState(() => {
+    const mode = resolveZiweiShortcutMode(promptState, inputState.analysisMode);
+    return (
+      readPromptDraft(ziweiDraftStorageKey) ||
+      promptState.ziweiQuickQuestion ||
+      findZiweiShortcutByMode(mode, inputState.analysisMode)?.question ||
+      ''
+    );
+  });
   const [isQuestionInspirationModalOpen, setIsQuestionInspirationModalOpen] = useState(false);
   const [activeInspirationCategory, setActiveInspirationCategory] = useState<InspirationCategory>('全部');
   const [inspirationSearch, setInspirationSearch] = useState('');
@@ -1315,6 +1632,40 @@ export function ResultPage() {
   const [promptEngine, setPromptEngine] = useState<PromptEngineModule | null>(null);
   const [baziFortuneSelectionModule, setBaziFortuneSelectionModule] =
     useState<BaziFortuneSelectionModule | null>(null);
+  const [mountedTabs, setMountedTabs] = useState<Record<ResultTabKey, boolean>>(() => ({
+    bazi: promptState.tab === 'bazi',
+    ziwei: promptState.tab === 'ziwei',
+    prompt: promptState.tab === 'prompt',
+  }));
+  const shouldLoadZiweiPromptPayload =
+    mountedTabs.prompt && promptState.promptSource === 'ziwei' && !mountedTabs.ziwei;
+  const primaryZiweiInput = useMemo(() => {
+    try {
+      return buildZiweiChartInput(inputState);
+    } catch {
+      return null;
+    }
+  }, [inputState]);
+  const partnerZiweiInput = useMemo(() => {
+    if (inputState.analysisMode !== 'compatibility') {
+      return null;
+    }
+
+    try {
+      return buildZiweiChartInput({
+        name: inputState.partnerName,
+        gender: inputState.partnerGender,
+        dateType: inputState.partnerDateType,
+        year: inputState.partnerYear,
+        month: inputState.partnerMonth,
+        day: inputState.partnerDay,
+        timeIndex: inputState.partnerTimeIndex,
+        isLeapMonth: inputState.partnerIsLeapMonth,
+      });
+    } catch {
+      return null;
+    }
+  }, [inputState]);
 
   useEffect(() => {
     try {
@@ -1374,6 +1725,19 @@ export function ResultPage() {
   }, []);
 
   useEffect(() => {
+    setMountedTabs((current) => {
+      if (current[promptState.tab]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [promptState.tab]: true,
+      };
+    });
+  }, [promptState.tab]);
+
+  useEffect(() => {
     if (
       (shouldLoadBaziPromptModules ? promptEngine : true) &&
       ((shouldLoadBaziPromptModules || isBaziFortuneModalOpen)
@@ -1424,14 +1788,154 @@ export function ResultPage() {
   ]);
 
   useEffect(() => {
+    const nextMode = resolveBaziShortcutMode(promptState, inputState.analysisMode);
+    setActiveBaziShortcutMode(nextMode);
+    if (nextMode === '自定义') {
+      setBaziQuestionDraft(readPromptDraft(baziDraftStorageKey));
+      return;
+    }
+
+    setBaziQuestionDraft(findBaziShortcutByMode(nextMode, inputState.analysisMode)?.question ?? '');
+  }, [
+    baziDraftStorageKey,
+    inputState.analysisMode,
+    promptState.baziPresetId,
+    promptState.baziShortcutMode,
+    promptState.baziQuickQuestion,
+  ]);
+
+  useEffect(() => {
+    const nextMode = resolveZiweiShortcutMode(promptState, inputState.analysisMode);
+    setActiveZiweiShortcutMode(nextMode);
+    if (nextMode === '自定义') {
+      setZiweiQuestionDraft(readPromptDraft(ziweiDraftStorageKey));
+      return;
+    }
+
+    setZiweiQuestionDraft(findZiweiShortcutByMode(nextMode, inputState.analysisMode)?.question ?? '');
+  }, [
+    inputState.analysisMode,
+    promptState.ziweiQuickQuestion,
+    promptState.ziweiShortcutMode,
+    promptState.ziweiTopic,
+    ziweiDraftStorageKey,
+  ]);
+
+  useEffect(() => {
+    if (activeBaziShortcutMode !== '自定义') {
+      return;
+    }
+
+    writePromptDraft(baziDraftStorageKey, baziQuestionDraft);
+  }, [activeBaziShortcutMode, baziDraftStorageKey, baziQuestionDraft]);
+
+  useEffect(() => {
+    if (activeZiweiShortcutMode !== '自定义') {
+      return;
+    }
+
+    writePromptDraft(ziweiDraftStorageKey, ziweiQuestionDraft);
+  }, [activeZiweiShortcutMode, ziweiDraftStorageKey, ziweiQuestionDraft]);
+
+  useEffect(() => {
+    if (!shouldLoadZiweiPromptPayload || !primaryZiweiInput) {
+      return;
+    }
+
+    const worker = new Worker(new URL('../workers/ziwei-payload.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const requestId = `${Date.now()}-primary`;
+
+    setZiweiPayloadByScope(null);
+
+    worker.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      payloadByScope?: Record<ScopeType, AnalysisPayloadV1>;
+      error?: string;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok && event.data.payloadByScope) {
+        setZiweiPayloadByScope(event.data.payloadByScope);
+        setZiweiError('');
+      } else {
+        setZiweiPayloadByScope(null);
+        setZiweiError(event.data.error || '紫微排盘失败。');
+      }
+
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      id: requestId,
+      input: primaryZiweiInput,
+    });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [primaryZiweiInput, shouldLoadZiweiPromptPayload]);
+
+  useEffect(() => {
+    if (!shouldLoadZiweiPromptPayload || !partnerZiweiInput) {
+      return;
+    }
+
+    const worker = new Worker(new URL('../workers/ziwei-payload.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const requestId = `${Date.now()}-partner`;
+
+    setPartnerZiweiPayloadByScope(null);
+
+    worker.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      payloadByScope?: Record<ScopeType, AnalysisPayloadV1>;
+      error?: string;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok && event.data.payloadByScope) {
+        setPartnerZiweiPayloadByScope(event.data.payloadByScope);
+        setZiweiError('');
+      } else {
+        setPartnerZiweiPayloadByScope(null);
+        setZiweiError(event.data.error || '第二人紫微排盘失败。');
+      }
+
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      id: requestId,
+      input: partnerZiweiInput,
+    });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [partnerZiweiInput, shouldLoadZiweiPromptPayload]);
+
+  useEffect(() => {
+    if (!mountedTabs.ziwei || !primaryZiweiInput) {
+      return;
+    }
+
     let cancelled = false;
 
     async function run() {
       try {
-        const ziweiInput = buildZiweiChartInput(inputState);
-        const runtime = await calculateFullZiweiChart(ziweiInput);
+        const runtime = await calculateFullZiweiChart(primaryZiweiInput);
         if (!cancelled) {
           setZiweiRuntime(runtime);
+          setZiweiPayloadByScope(runtime.payloadByScope);
           setZiweiError('');
         }
       } catch (error) {
@@ -1446,10 +1950,10 @@ export function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [inputState]);
+  }, [mountedTabs.ziwei, primaryZiweiInput]);
 
   useEffect(() => {
-    if (inputState.analysisMode !== 'compatibility') {
+    if (!mountedTabs.ziwei || !partnerZiweiInput) {
       setPartnerZiweiRuntime(null);
       return;
     }
@@ -1458,20 +1962,10 @@ export function ResultPage() {
 
     async function run() {
       try {
-        const runtime = await calculateFullZiweiChart(
-          buildZiweiChartInput({
-            name: inputState.partnerName,
-            gender: inputState.partnerGender,
-            dateType: inputState.partnerDateType,
-            year: inputState.partnerYear,
-            month: inputState.partnerMonth,
-            day: inputState.partnerDay,
-            timeIndex: inputState.partnerTimeIndex,
-            isLeapMonth: inputState.partnerIsLeapMonth,
-          }),
-        );
+        const runtime = await calculateFullZiweiChart(partnerZiweiInput);
         if (!cancelled) {
           setPartnerZiweiRuntime(runtime);
+          setPartnerZiweiPayloadByScope(runtime.payloadByScope);
           setZiweiError('');
         }
       } catch (error) {
@@ -1486,17 +1980,21 @@ export function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [inputState]);
+  }, [mountedTabs.ziwei, partnerZiweiInput]);
+
+  const activeZiweiPayloadByScope = ziweiRuntime?.payloadByScope ?? ziweiPayloadByScope;
+  const activePartnerZiweiPayloadByScope =
+    partnerZiweiRuntime?.payloadByScope ?? partnerZiweiPayloadByScope;
 
   const currentZiweiPayload = useMemo(() => {
-    if (!ziweiRuntime) return null;
-    return ziweiRuntime.payloadByScope[promptState.ziweiScope as ScopeType];
-  }, [ziweiRuntime, promptState.ziweiScope]);
+    if (!activeZiweiPayloadByScope) return null;
+    return activeZiweiPayloadByScope[promptState.ziweiScope as ScopeType];
+  }, [activeZiweiPayloadByScope, promptState.ziweiScope]);
 
   const partnerZiweiPayload = useMemo(() => {
-    if (!partnerZiweiRuntime) return null;
-    return partnerZiweiRuntime.payloadByScope[promptState.ziweiScope as ScopeType];
-  }, [partnerZiweiRuntime, promptState.ziweiScope]);
+    if (!activePartnerZiweiPayloadByScope) return null;
+    return activePartnerZiweiPayloadByScope[promptState.ziweiScope as ScopeType];
+  }, [activePartnerZiweiPayloadByScope, promptState.ziweiScope]);
 
   const selectedBaziPreset = useMemo(
     () => {
@@ -1549,22 +2047,41 @@ export function ResultPage() {
     [baziFortuneSelectionModule, baziResult, normalizedBaziFortuneSelection],
   );
 
+  const effectiveBaziQuickQuestion =
+    activeBaziShortcutMode === '自定义'
+      ? baziQuestionDraft
+      : findBaziShortcutByMode(activeBaziShortcutMode, inputState.analysisMode)?.question || '';
+  const effectiveZiweiQuickQuestion =
+    activeZiweiShortcutMode === '自定义'
+      ? ziweiQuestionDraft
+      : findZiweiShortcutByMode(activeZiweiShortcutMode, inputState.analysisMode)?.question || '';
+  const deferredBaziQuickQuestion = useDeferredValue(effectiveBaziQuickQuestion);
+  const deferredZiweiQuickQuestion = useDeferredValue(effectiveZiweiQuickQuestion);
+
   const finalBaziQuestion = useMemo(() => {
-    const baseQuestion = promptState.baziQuickQuestion.trim() || '请先做整体解读。';
+    const baseQuestion = effectiveBaziQuickQuestion.trim() || '请先做整体解读。';
     if (baziFortuneContext) {
       return `请结合${baziFortuneContext.displayLabel}重点回答：${baseQuestion}`;
     }
 
     return baseQuestion;
-  }, [baziFortuneContext, promptState.baziQuickQuestion]);
+  }, [baziFortuneContext, effectiveBaziQuickQuestion]);
+  const deferredFinalBaziQuestion = useMemo(() => {
+    const baseQuestion = deferredBaziQuickQuestion.trim() || '请先做整体解读。';
+    if (baziFortuneContext) {
+      return `请结合${baziFortuneContext.displayLabel}重点回答：${baseQuestion}`;
+    }
 
-  const baziPromptText = useMemo(() => {
+    return baseQuestion;
+  }, [baziFortuneContext, deferredBaziQuickQuestion]);
+
+  const latestBaziPromptText = useMemo(() => {
     if (promptState.tab !== 'prompt' || !promptEngine) return '';
     if (!baziResult) return '';
     if (inputState.analysisMode === 'compatibility') {
       if (!partnerBaziResult) return '';
       const compatibilityPrompt = promptEngine.getCompatibilityPrompt(
-        promptState.baziQuickQuestion.trim() || '请先从婚恋匹配角度做整体解读。',
+        effectiveBaziQuickQuestion.trim() || '请先从婚恋匹配角度做整体解读。',
         baziResult,
         partnerBaziResult,
       );
@@ -1581,9 +2098,33 @@ export function ResultPage() {
       baziFortuneContext,
     );
     return buildCombinedPromptText(system, user);
-  }, [baziFortuneContext, baziFortuneSelectionModule, baziResult, finalBaziQuestion, inputState.analysisMode, partnerBaziResult, promptEngine, promptState.baziQuickQuestion, promptState.tab, selectedBaziPreset]);
+  }, [baziFortuneContext, baziFortuneSelectionModule, baziResult, effectiveBaziQuickQuestion, finalBaziQuestion, inputState.analysisMode, partnerBaziResult, promptEngine, promptState.tab, selectedBaziPreset]);
+  const previewBaziPromptText = useMemo(() => {
+    if (promptState.tab !== 'prompt' || !promptEngine) return '';
+    if (!baziResult) return '';
+    if (inputState.analysisMode === 'compatibility') {
+      if (!partnerBaziResult) return '';
+      const compatibilityPrompt = promptEngine.getCompatibilityPrompt(
+        deferredBaziQuickQuestion.trim() || '请先从婚恋匹配角度做整体解读。',
+        baziResult,
+        partnerBaziResult,
+      );
+      return buildCombinedPromptText(compatibilityPrompt.system, compatibilityPrompt.user);
+    }
+    if (!baziFortuneSelectionModule) return '';
+    if (!selectedBaziPreset) return '';
+    const { system, user } = promptEngine.buildPromptFromConfig(
+      deferredFinalBaziQuestion,
+      selectedBaziPreset,
+      baziResult,
+      0,
+      false,
+      baziFortuneContext,
+    );
+    return buildCombinedPromptText(system, user);
+  }, [baziFortuneContext, baziFortuneSelectionModule, baziResult, deferredBaziQuickQuestion, deferredFinalBaziQuestion, inputState.analysisMode, partnerBaziResult, promptEngine, promptState.tab, selectedBaziPreset]);
 
-  const ziweiPromptText = useMemo(() => {
+  const latestZiweiPromptText = useMemo(() => {
     if (promptState.tab !== 'prompt') return '';
     if (inputState.analysisMode === 'compatibility') {
       if (!currentZiweiPayload || !partnerZiweiPayload) return '';
@@ -1592,19 +2133,40 @@ export function ResultPage() {
         partnerPayload: partnerZiweiPayload,
         topic: promptState.ziweiTopic,
         question:
-          promptState.ziweiQuickQuestion || '请先分析双方关系匹配度、互动模式和相处建议。',
+          effectiveZiweiQuickQuestion || '请先分析双方关系匹配度、互动模式和相处建议。',
       });
     }
     if (!currentZiweiPayload) return '';
     return buildCombinedZiweiPrompt(
       currentZiweiPayload,
       promptState.ziweiTopic,
-      promptState.ziweiQuickQuestion || '请先做整体解读。',
+      effectiveZiweiQuickQuestion || '请先做整体解读。',
     );
-  }, [currentZiweiPayload, inputState.analysisMode, partnerZiweiPayload, promptState.tab, promptState.ziweiQuickQuestion, promptState.ziweiTopic]);
+  }, [currentZiweiPayload, effectiveZiweiQuickQuestion, inputState.analysisMode, partnerZiweiPayload, promptState.tab, promptState.ziweiTopic]);
+  const previewZiweiPromptText = useMemo(() => {
+    if (promptState.tab !== 'prompt') return '';
+    if (inputState.analysisMode === 'compatibility') {
+      if (!currentZiweiPayload || !partnerZiweiPayload) return '';
+      return buildCombinedZiweiCompatibilityPrompt({
+        primaryPayload: currentZiweiPayload,
+        partnerPayload: partnerZiweiPayload,
+        topic: promptState.ziweiTopic,
+        question:
+          deferredZiweiQuickQuestion || '请先分析双方关系匹配度、互动模式和相处建议。',
+      });
+    }
+    if (!currentZiweiPayload) return '';
+    return buildCombinedZiweiPrompt(
+      currentZiweiPayload,
+      promptState.ziweiTopic,
+      deferredZiweiQuickQuestion || '请先做整体解读。',
+    );
+  }, [currentZiweiPayload, deferredZiweiQuickQuestion, inputState.analysisMode, partnerZiweiPayload, promptState.tab, promptState.ziweiTopic]);
 
-  const activePromptText =
-    promptState.promptSource === 'bazi' ? baziPromptText : ziweiPromptText;
+  const latestActivePromptText =
+    promptState.promptSource === 'bazi' ? latestBaziPromptText : latestZiweiPromptText;
+  const previewActivePromptText =
+    promptState.promptSource === 'bazi' ? previewBaziPromptText : previewZiweiPromptText;
   const isBaziFortuneSummaryLoading =
     shouldLoadBaziPromptModules && !baziFortuneSelectionModule;
   const baziFortuneSummaryText = baziFortuneContext?.displayText ?? '仅使用本命信息';
@@ -1623,13 +2185,26 @@ export function ResultPage() {
       return matchesCategory && matchesKeyword;
     });
   }, [activeInspirationCategory, inspirationSearch]);
+  const filteredQuestionInspirationSections = useMemo(
+    () => [
+      {
+        id: 'common',
+        items: filteredQuestionInspirations.map((item) => ({
+          id: `${item.category}-${item.question}`,
+          question: item.question,
+          tag: item.category,
+        })),
+      },
+    ],
+    [filteredQuestionInspirations],
+  );
 
   function updatePromptState(next: Partial<QueryPromptState>) {
     const merged = {
       ...promptState,
       ...next,
     };
-    setSearchParams(buildResultSearch(inputState, merged));
+    setSearchParams(buildResultSearch(inputState, merged), { replace: true });
   }
 
   function switchTab(tab: ResultTabKey) {
@@ -1639,51 +2214,57 @@ export function ResultPage() {
   function applyBaziShortcutMode(mode: PromptShortcutMode) {
     setActiveBaziShortcutMode(mode);
     if (mode === '自定义') {
+      setBaziQuestionDraft('');
       updatePromptState(buildBaziCustomPromptPatch());
       return;
     }
 
-    const matched = baziSingleShortcutActions.find((item) => item.label === mode);
+    const matched = findBaziShortcutByMode(mode, inputState.analysisMode);
     if (!matched) {
       return;
     }
 
+    setBaziQuestionDraft(matched.question);
     updatePromptState({
+      baziShortcutMode: mode,
       baziPresetId: matched.promptId,
-      baziQuickQuestion: matched.question,
     });
   }
 
   function applyZiweiShortcutMode(mode: PromptShortcutMode) {
     setActiveZiweiShortcutMode(mode);
     if (mode === '自定义') {
+      setZiweiQuestionDraft('');
       updatePromptState(buildZiweiCustomPromptPatch());
       return;
     }
 
-    const matched = ziweiSingleShortcutActions.find((item) => item.label === mode);
+    const matched = findZiweiShortcutByMode(mode, inputState.analysisMode);
     if (!matched) {
       return;
     }
 
+    setZiweiQuestionDraft(matched.question);
     updatePromptState({
+      ziweiShortcutMode: mode,
       ziweiTopic: matched.topic,
-      ziweiQuickQuestion: matched.question,
     });
   }
 
   function applyInspiredQuestion(question: string) {
     if (promptState.promptSource === 'bazi') {
       setActiveBaziShortcutMode('自定义');
+      setBaziQuestionDraft(question);
       updatePromptState({
+        baziShortcutMode: '自定义',
         baziPresetId: 'ai-mingge-zonglun',
-        baziQuickQuestion: question,
       });
     } else {
       setActiveZiweiShortcutMode('自定义');
+      setZiweiQuestionDraft(question);
       updatePromptState({
+        ziweiShortcutMode: '自定义',
         ziweiTopic: 'chat',
-        ziweiQuickQuestion: question,
       });
     }
 
@@ -1697,13 +2278,13 @@ export function ResultPage() {
   }
 
   async function handleShare() {
-    if (!activePromptText) {
+    if (!latestActivePromptText) {
       setShareState('暂无内容');
       return;
     }
 
     try {
-      const ok = await shareText(activePromptText);
+      const ok = await shareText(latestActivePromptText);
       setShareState(ok ? '已调起系统分享' : '当前设备不支持系统分享');
     } catch {
       setShareState('分享失败');
@@ -1711,13 +2292,13 @@ export function ResultPage() {
   }
 
   async function handleCopy() {
-    if (!activePromptText) {
+    if (!latestActivePromptText) {
       setCopyState('暂无内容');
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(activePromptText);
+      await navigator.clipboard.writeText(latestActivePromptText);
       setCopyState('已复制');
     } catch {
       setCopyState('复制失败');
@@ -1751,76 +2332,105 @@ export function ResultPage() {
           className={`result-tab-pane ${promptState.tab === 'bazi' ? 'is-active' : 'is-inactive'}`}
           aria-hidden={promptState.tab !== 'bazi'}
         >
-          <div className="single-panel-shell">
-            <section className="panel result-panel result-panel-bazi">
-              {baziError ? <p className="error-text">{baziError}</p> : null}
-              {inputState.analysisMode === 'compatibility' ? (
-                <div className="result-dual-layout">
-                  {baziResult ? (
-                    <BaziChartBoard
-                      title="第一人八字"
-                      name={inputState.name || '第一人'}
-                      result={baziResult}
-                    />
-                  ) : null}
-                  {partnerBaziResult ? (
-                    <BaziChartBoard
-                      title="第二人八字"
-                      name={inputState.partnerName || '第二人'}
-                      result={partnerBaziResult}
-                    />
-                  ) : null}
-                </div>
-              ) : baziResult ? (
-                <BaziChartBoard
-                  title="八字总览"
-                  name={inputState.name || '当前命盘'}
-                  result={baziResult}
-                />
-              ) : null}
-            </section>
-          </div>
+          {mountedTabs.bazi ? (
+            <div className="single-panel-shell">
+              <section className="panel result-panel result-panel-bazi">
+                {baziError ? <p className="error-text">{baziError}</p> : null}
+                {inputState.analysisMode === 'compatibility' ? (
+                  <div className="result-dual-layout">
+                    {baziResult ? (
+                      <BaziChartBoard
+                        title="第一人八字"
+                        name={inputState.name || '第一人'}
+                        result={baziResult}
+                      />
+                    ) : null}
+                    {partnerBaziResult ? (
+                      <BaziChartBoard
+                        title="第二人八字"
+                        name={inputState.partnerName || '第二人'}
+                        result={partnerBaziResult}
+                      />
+                    ) : null}
+                  </div>
+                ) : baziResult ? (
+                  <BaziChartBoard
+                    title="八字总览"
+                    name={inputState.name || '当前命盘'}
+                    result={baziResult}
+                  />
+                ) : null}
+              </section>
+            </div>
+          ) : null}
         </div>
 
         <div
           className={`result-tab-pane ${promptState.tab === 'ziwei' ? 'is-active' : 'is-inactive'}`}
           aria-hidden={promptState.tab !== 'ziwei'}
         >
-          <div className="single-panel-shell">
-            <section className="panel result-panel result-panel-ziwei">
-              {ziweiError ? <p className="error-text">{ziweiError}</p> : null}
-              {inputState.analysisMode === 'compatibility' && currentZiweiPayload && partnerZiweiPayload ? (
-                <div className="result-dual-layout">
-                  <ZiweiBoard
-                    title="第一人紫微"
-                    name={inputState.name || '第一人'}
-                    payload={currentZiweiPayload}
-                    runtime={ziweiRuntime!}
-                  />
-                  <ZiweiBoard
-                    title="第二人紫微"
-                    name={inputState.partnerName || '第二人'}
-                    payload={partnerZiweiPayload}
-                    runtime={partnerZiweiRuntime!}
-                  />
-                </div>
-              ) : null}
-              {inputState.analysisMode !== 'compatibility' && currentZiweiPayload ? (
-                <ZiweiBoard
-                  title="紫微总览"
-                  name={inputState.name || '当前命盘'}
-                  payload={currentZiweiPayload}
-                  runtime={ziweiRuntime!}
-                />
-              ) : null}
-            </section>
-          </div>
+          {mountedTabs.ziwei ? (
+            <div className="single-panel-shell">
+              <section className="panel result-panel result-panel-ziwei">
+                {ziweiError ? <p className="error-text">{ziweiError}</p> : null}
+                {inputState.analysisMode === 'compatibility' && currentZiweiPayload && partnerZiweiPayload ? (
+                  <div className="result-dual-layout">
+                    {ziweiRuntime && primaryZiweiInput ? (
+                      <ZiweiBoard
+                        title="第一人紫微"
+                        name={inputState.name || '第一人'}
+                        payload={currentZiweiPayload}
+                        chartInput={primaryZiweiInput}
+                        runtime={ziweiRuntime}
+                      />
+                    ) : (
+                      <ZiweiBoardSkeleton
+                        title="第一人紫微"
+                        name={inputState.name || '第一人'}
+                      />
+                    )}
+                    {partnerZiweiRuntime && partnerZiweiInput ? (
+                      <ZiweiBoard
+                        title="第二人紫微"
+                        name={inputState.partnerName || '第二人'}
+                        payload={partnerZiweiPayload}
+                        chartInput={partnerZiweiInput}
+                        runtime={partnerZiweiRuntime}
+                      />
+                    ) : (
+                      <ZiweiBoardSkeleton
+                        title="第二人紫微"
+                        name={inputState.partnerName || '第二人'}
+                      />
+                    )}
+                  </div>
+                ) : null}
+                {inputState.analysisMode !== 'compatibility' && currentZiweiPayload ? (
+                  ziweiRuntime && primaryZiweiInput ? (
+                    <ZiweiBoard
+                      title="紫微总览"
+                      name={inputState.name || '当前命盘'}
+                      payload={currentZiweiPayload}
+                      chartInput={primaryZiweiInput}
+                      runtime={ziweiRuntime}
+                    />
+                  ) : (
+                    <ZiweiBoardSkeleton
+                      title="紫微总览"
+                      name={inputState.name || '当前命盘'}
+                    />
+                  )
+                ) : null}
+              </section>
+            </div>
+          ) : null}
         </div>
 
         <div
           className={`result-tab-pane ${promptState.tab === 'prompt' ? 'is-active' : 'is-inactive'}`}
           aria-hidden={promptState.tab !== 'prompt'}
         >
+          {mountedTabs.prompt ? (
           <div className="workspace-grid">
             <section className="panel">
               <div className="panel-head">
@@ -1888,30 +2498,16 @@ export function ResultPage() {
                 {promptState.promptSource === 'bazi' ? (
                   <>
                     <div className="quick-grid">
-                      {(inputState.analysisMode === 'compatibility'
-                        ? [
-                            { label: '合婚', promptId: 'ai-compat-marriage', question: '请重点分析我们两人的婚恋匹配度、长期磨合点和相处建议。' },
-                            { label: '合伙', promptId: 'ai-compat-career', question: '请重点分析我们两人的合作模式、分工建议和利益风险。' },
-                            { label: '友情', promptId: 'ai-compat-friendship', question: '请重点分析我们两人的相处默契、冲突点和关系建议。' },
-                          ]
-                        : baziSingleShortcutActions
-                      ).map((item) => (
+                      {getBaziShortcutActions(inputState.analysisMode).map((item) => (
                         <button
                           key={item.label}
                           type="button"
                           className={`quick-chip ${
-                            inputState.analysisMode === 'single' && activeBaziShortcutMode === item.label
+                            activeBaziShortcutMode === item.label
                               ? 'is-active'
                               : ''
                           }`}
-                          onClick={() =>
-                            inputState.analysisMode === 'compatibility'
-                              ? updatePromptState({
-                                  baziPresetId: item.promptId,
-                                  baziQuickQuestion: item.question,
-                                })
-                              : applyBaziShortcutMode(item.label)
-                          }
+                          onClick={() => applyBaziShortcutMode(item.label)}
                         >
                           {item.label}
                         </button>
@@ -1943,13 +2539,9 @@ export function ResultPage() {
                         </div>
                         <textarea
                           rows={6}
-                          value={promptState.baziQuickQuestion}
+                          value={baziQuestionDraft}
                           placeholder="例如：我近期适合换工作还是稳住？"
-                          onChange={(event) =>
-                            updatePromptState({
-                              baziQuickQuestion: event.target.value,
-                            })
-                          }
+                          onChange={(event) => setBaziQuestionDraft(event.target.value)}
                         />
                       </label>
                     ) : null}
@@ -1959,30 +2551,16 @@ export function ResultPage() {
                 {promptState.promptSource === 'ziwei' ? (
                   <>
                     <div className="quick-grid">
-                      {(inputState.analysisMode === 'compatibility'
-                        ? [
-                            { label: '感情', topic: 'relationship', question: '请重点分析双方关系匹配度、吸引点、冲突点和相处建议。' },
-                            { label: '合作', topic: 'career-wealth', question: '请重点分析双方合作默契、优势互补和潜在风险。' },
-                            { label: '相处', topic: 'chat', question: '请从双方盘面看互动模式、沟通盲点和长期建议。' },
-                          ]
-                        : ziweiSingleShortcutActions
-                      ).map((item) => (
+                      {getZiweiShortcutActions(inputState.analysisMode).map((item) => (
                         <button
                           key={item.label}
                           type="button"
                           className={`quick-chip ${
-                            inputState.analysisMode === 'single' && activeZiweiShortcutMode === item.label
+                            activeZiweiShortcutMode === item.label
                               ? 'is-active'
                               : ''
                           }`}
-                          onClick={() =>
-                            inputState.analysisMode === 'compatibility'
-                              ? updatePromptState({
-                                  ziweiTopic: item.topic,
-                                  ziweiQuickQuestion: item.question,
-                                })
-                              : applyZiweiShortcutMode(item.label)
-                          }
+                          onClick={() => applyZiweiShortcutMode(item.label)}
                         >
                           {item.label}
                         </button>
@@ -2014,13 +2592,9 @@ export function ResultPage() {
                         </div>
                         <textarea
                           rows={6}
-                          value={promptState.ziweiQuickQuestion}
+                          value={ziweiQuestionDraft}
                           placeholder="例如：请重点分析我这段时间该主动还是先稳住。"
-                          onChange={(event) =>
-                            updatePromptState({
-                              ziweiQuickQuestion: event.target.value,
-                            })
-                          }
+                          onChange={(event) => setZiweiQuestionDraft(event.target.value)}
                         />
                       </label>
                     ) : null}
@@ -2046,13 +2620,14 @@ export function ResultPage() {
                   ) : null}
                 </div>
               </div>
-              {activePromptText ? (
-                <pre className="result-pre">{activePromptText}</pre>
+              {previewActivePromptText ? (
+                <pre className="result-pre">{previewActivePromptText}</pre>
               ) : (
                 <PromptPreSkeleton />
               )}
             </section>
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -2092,67 +2667,20 @@ export function ResultPage() {
       ) : null}
 
       {isQuestionInspirationModalOpen && inputState.analysisMode === 'single' ? (
-        <div className="modal-backdrop" onClick={() => setIsQuestionInspirationModalOpen(false)}>
-          <div className="modal-card question-inspiration-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="birth-place-modal-head">
-              <h2>问题灵感</h2>
-            </div>
-
-            <div className="question-inspiration-toolbar">
-              <div className="question-inspiration-filters">
-                {inspirationCategories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`question-filter-chip ${
-                      activeInspirationCategory === category ? 'is-active' : ''
-                    }`}
-                    onClick={() => setActiveInspirationCategory(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-
-              <div className="question-inspiration-search">
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="搜索常见问题"
-                  value={inspirationSearch}
-                  onChange={(event) => setInspirationSearch(event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="question-inspiration-list">
-              {filteredQuestionInspirations.map((item) => (
-                <button
-                  key={`${item.category}-${item.question}`}
-                  type="button"
-                  className="question-inspiration-item"
-                  onClick={() => applyInspiredQuestion(item.question)}
-                >
-                  <span className="question-inspiration-tag">{item.category}</span>
-                  <span>{item.question}</span>
-                </button>
-              ))}
-              {filteredQuestionInspirations.length === 0 ? (
-                <div className="question-inspiration-empty">没有找到匹配的问题，请换个关键词或分类。</div>
-              ) : null}
-            </div>
-
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="modal-btn modal-btn-secondary"
-                onClick={() => setIsQuestionInspirationModalOpen(false)}
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuestionInspirationModal
+          filters={inspirationCategories.map((category) => ({
+            label: category,
+            value: category,
+          }))}
+          activeFilter={activeInspirationCategory}
+          onFilterChange={(value) => setActiveInspirationCategory(value as InspirationCategory)}
+          searchValue={inspirationSearch}
+          onSearchChange={setInspirationSearch}
+          sections={filteredQuestionInspirationSections}
+          emptyText="没有找到匹配的问题，请换个关键词或分类。"
+          onSelect={applyInspiredQuestion}
+          onClose={() => setIsQuestionInspirationModalOpen(false)}
+        />
       ) : null}
     </div>
   );

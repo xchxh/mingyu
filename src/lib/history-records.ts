@@ -1,7 +1,9 @@
 import type { QueryInputState } from '@/lib/query-state';
+import type { DivinationDraft, DivinationSession } from '@/lib/divination/engine';
 
 const PERSONAL_HISTORY_STORAGE_KEY = 'prompt_studio_personal_history_v1';
 const COMPATIBILITY_HISTORY_STORAGE_KEY = 'prompt_studio_compatibility_history_v1';
+const DIVINATION_HISTORY_STORAGE_KEY = 'prompt_studio_divination_history_v1';
 const MAX_HISTORY_RECORDS = 20;
 
 export type PersonalHistoryRecord = {
@@ -24,7 +26,21 @@ export type CompatibilityHistoryRecord = {
   updatedAt: string;
 };
 
-export type AnyHistoryRecord = PersonalHistoryRecord | CompatibilityHistoryRecord;
+export type DivinationHistoryRecord = {
+  id: string;
+  type: 'divination';
+  question: string;
+  requestedMethod: DivinationSession['requestedMethod'];
+  method: DivinationSession['method'];
+  draft: DivinationDraft;
+  session: DivinationSession;
+  updatedAt: string;
+};
+
+export type AnyHistoryRecord =
+  | PersonalHistoryRecord
+  | CompatibilityHistoryRecord
+  | DivinationHistoryRecord;
 
 function getStorage() {
   if (typeof window === 'undefined') {
@@ -78,12 +94,24 @@ function cloneInput(input: QueryInputState): QueryInputState {
   return JSON.parse(JSON.stringify(input)) as QueryInputState;
 }
 
+function cloneDivinationDraft(draft: DivinationDraft): DivinationDraft {
+  return JSON.parse(JSON.stringify(draft)) as DivinationDraft;
+}
+
+function cloneDivinationSession(session: DivinationSession): DivinationSession {
+  return JSON.parse(JSON.stringify(session)) as DivinationSession;
+}
+
 export function loadPersonalHistory() {
   return readRecords<PersonalHistoryRecord>(PERSONAL_HISTORY_STORAGE_KEY);
 }
 
 export function loadCompatibilityHistory() {
   return readRecords<CompatibilityHistoryRecord>(COMPATIBILITY_HISTORY_STORAGE_KEY);
+}
+
+export function loadDivinationHistory() {
+  return readRecords<DivinationHistoryRecord>(DIVINATION_HISTORY_STORAGE_KEY);
 }
 
 export function upsertPersonalHistory(input: QueryInputState) {
@@ -173,5 +201,36 @@ export function removePersonalHistory(id: string) {
 export function removeCompatibilityHistory(id: string) {
   const next = loadCompatibilityHistory().filter((item) => item.id !== id);
   writeRecords(COMPATIBILITY_HISTORY_STORAGE_KEY, next);
+  return next;
+}
+
+export function addDivinationHistory(draft: DivinationDraft, session: DivinationSession) {
+  const question = session.question.trim();
+  if (!question) {
+    return null;
+  }
+
+  const record: DivinationHistoryRecord = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    type: 'divination',
+    question,
+    requestedMethod: session.requestedMethod,
+    method: session.method,
+    draft: cloneDivinationDraft(draft),
+    session: cloneDivinationSession(session),
+    updatedAt: new Date().toISOString(),
+  };
+
+  writeRecords(DIVINATION_HISTORY_STORAGE_KEY, [record, ...loadDivinationHistory()]);
+  return record;
+}
+
+export function getDivinationHistoryById(id: string) {
+  return loadDivinationHistory().find((item) => item.id === id) ?? null;
+}
+
+export function removeDivinationHistory(id: string) {
+  const next = loadDivinationHistory().filter((item) => item.id !== id);
+  writeRecords(DIVINATION_HISTORY_STORAGE_KEY, next);
   return next;
 }

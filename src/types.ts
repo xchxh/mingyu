@@ -19,3 +19,5 @@ export type PromptTemplate = {
     user: string;
   };
 };
+
+export * from './types/divination';

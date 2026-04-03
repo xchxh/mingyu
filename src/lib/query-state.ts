@@ -38,6 +38,7 @@ export type QueryPromptState = {
   tab: ResultTabKey;
   promptSource: PromptSourceKey;
   baziPresetId: string;
+  baziShortcutMode: string;
   baziQuickQuestion: string;
   baziFortuneScope: BaziFortuneScope;
   baziFortuneCycleIndex: string;
@@ -45,6 +46,7 @@ export type QueryPromptState = {
   baziFortuneMonth: string;
   baziFortuneDay: string;
   ziweiTopic: string;
+  ziweiShortcutMode: string;
   ziweiQuickQuestion: string;
   ziweiScope: ZiweiScopeMode;
 };
@@ -83,6 +85,7 @@ export const defaultPromptState: QueryPromptState = {
   tab: 'bazi',
   promptSource: 'bazi',
   baziPresetId: 'ai-mingge-zonglun',
+  baziShortcutMode: '自定义',
   baziQuickQuestion: '',
   baziFortuneScope: 'natal',
   baziFortuneCycleIndex: '',
@@ -90,9 +93,55 @@ export const defaultPromptState: QueryPromptState = {
   baziFortuneMonth: '',
   baziFortuneDay: '',
   ziweiTopic: 'destiny',
+  ziweiShortcutMode: '自定义',
   ziweiQuickQuestion: '',
   ziweiScope: 'origin',
 };
+
+function appendInputStateParams(params: URLSearchParams, input: QueryInputState) {
+  params.set('analysisMode', input.analysisMode);
+  params.set('name', input.name);
+  params.set('gender', input.gender);
+  params.set('dateType', input.dateType);
+  params.set('year', input.year);
+  params.set('month', input.month);
+  params.set('day', input.day);
+  params.set('timeIndex', String(input.timeIndex));
+  params.set('isLeapMonth', input.isLeapMonth ? '1' : '0');
+  params.set('useTrueSolarTime', input.useTrueSolarTime ? '1' : '0');
+  params.set('birthHour', input.birthHour);
+  params.set('birthMinute', input.birthMinute);
+  params.set('birthPlace', input.birthPlace);
+  params.set('birthLongitude', input.birthLongitude);
+  params.set('partnerName', input.partnerName);
+  params.set('partnerGender', input.partnerGender);
+  params.set('partnerDateType', input.partnerDateType);
+  params.set('partnerYear', input.partnerYear);
+  params.set('partnerMonth', input.partnerMonth);
+  params.set('partnerDay', input.partnerDay);
+  params.set('partnerTimeIndex', String(input.partnerTimeIndex));
+  params.set('partnerIsLeapMonth', input.partnerIsLeapMonth ? '1' : '0');
+  params.set('partnerUseTrueSolarTime', input.partnerUseTrueSolarTime ? '1' : '0');
+  params.set('partnerBirthHour', input.partnerBirthHour);
+  params.set('partnerBirthMinute', input.partnerBirthMinute);
+  params.set('partnerBirthPlace', input.partnerBirthPlace);
+  params.set('partnerBirthLongitude', input.partnerBirthLongitude);
+}
+
+function appendPromptStateParams(params: URLSearchParams, prompt: QueryPromptState) {
+  params.set('tab', prompt.tab);
+  params.set('promptSource', prompt.promptSource);
+  params.set('baziPresetId', prompt.baziPresetId);
+  params.set('baziShortcutMode', prompt.baziShortcutMode);
+  params.set('baziFortuneScope', prompt.baziFortuneScope);
+  params.set('baziFortuneCycleIndex', prompt.baziFortuneCycleIndex);
+  params.set('baziFortuneYear', prompt.baziFortuneYear);
+  params.set('baziFortuneMonth', prompt.baziFortuneMonth);
+  params.set('baziFortuneDay', prompt.baziFortuneDay);
+  params.set('ziweiTopic', prompt.ziweiTopic);
+  params.set('ziweiShortcutMode', prompt.ziweiShortcutMode);
+  params.set('ziweiScope', prompt.ziweiScope);
+}
 
 function getString(params: URLSearchParams, key: string, fallback: string) {
   return params.get(key) ?? fallback;
@@ -158,6 +207,15 @@ export function parseInputState(params: URLSearchParams): QueryInputState {
   };
 }
 
+export function buildInputSearch(params: URLSearchParams) {
+  const input = parseInputState(params);
+  const snapshot = new URLSearchParams();
+
+  appendInputStateParams(snapshot, input);
+
+  return snapshot.toString();
+}
+
 export function parsePromptState(params: URLSearchParams): QueryPromptState {
   const legacyYearMode = getString(params, 'baziYearMode', '');
   const legacySelectedYear = getString(params, 'baziSelectedYear', '');
@@ -175,6 +233,11 @@ export function parsePromptState(params: URLSearchParams): QueryPromptState {
         ? 'ziwei'
         : 'bazi',
     baziPresetId: getString(params, 'baziPresetId', defaultPromptState.baziPresetId),
+    baziShortcutMode: getString(
+      params,
+      'baziShortcutMode',
+      defaultPromptState.baziShortcutMode,
+    ),
     baziQuickQuestion: getString(params, 'baziQuickQuestion', defaultPromptState.baziQuickQuestion),
     baziFortuneScope: getString(
       params,
@@ -194,6 +257,11 @@ export function parsePromptState(params: URLSearchParams): QueryPromptState {
     ),
     baziFortuneDay: getString(params, 'baziFortuneDay', defaultPromptState.baziFortuneDay),
     ziweiTopic: getString(params, 'ziweiTopic', defaultPromptState.ziweiTopic),
+    ziweiShortcutMode: getString(
+      params,
+      'ziweiShortcutMode',
+      defaultPromptState.ziweiShortcutMode,
+    ),
     ziweiQuickQuestion: getString(params, 'ziweiQuickQuestion', defaultPromptState.ziweiQuickQuestion),
     ziweiScope: (getString(params, 'ziweiScope', defaultPromptState.ziweiScope) as ZiweiScopeMode),
   };
@@ -204,46 +272,8 @@ export function buildResultSearch(
   prompt: QueryPromptState = defaultPromptState,
 ) {
   const params = new URLSearchParams();
-
-  params.set('analysisMode', input.analysisMode);
-  params.set('name', input.name);
-  params.set('gender', input.gender);
-  params.set('dateType', input.dateType);
-  params.set('year', input.year);
-  params.set('month', input.month);
-  params.set('day', input.day);
-  params.set('timeIndex', String(input.timeIndex));
-  params.set('isLeapMonth', input.isLeapMonth ? '1' : '0');
-  params.set('useTrueSolarTime', input.useTrueSolarTime ? '1' : '0');
-  params.set('birthHour', input.birthHour);
-  params.set('birthMinute', input.birthMinute);
-  params.set('birthPlace', input.birthPlace);
-  params.set('birthLongitude', input.birthLongitude);
-  params.set('partnerName', input.partnerName);
-  params.set('partnerGender', input.partnerGender);
-  params.set('partnerDateType', input.partnerDateType);
-  params.set('partnerYear', input.partnerYear);
-  params.set('partnerMonth', input.partnerMonth);
-  params.set('partnerDay', input.partnerDay);
-  params.set('partnerTimeIndex', String(input.partnerTimeIndex));
-  params.set('partnerIsLeapMonth', input.partnerIsLeapMonth ? '1' : '0');
-  params.set('partnerUseTrueSolarTime', input.partnerUseTrueSolarTime ? '1' : '0');
-  params.set('partnerBirthHour', input.partnerBirthHour);
-  params.set('partnerBirthMinute', input.partnerBirthMinute);
-  params.set('partnerBirthPlace', input.partnerBirthPlace);
-  params.set('partnerBirthLongitude', input.partnerBirthLongitude);
-  params.set('tab', prompt.tab);
-  params.set('promptSource', prompt.promptSource);
-  params.set('baziPresetId', prompt.baziPresetId);
-  params.set('baziQuickQuestion', prompt.baziQuickQuestion);
-  params.set('baziFortuneScope', prompt.baziFortuneScope);
-  params.set('baziFortuneCycleIndex', prompt.baziFortuneCycleIndex);
-  params.set('baziFortuneYear', prompt.baziFortuneYear);
-  params.set('baziFortuneMonth', prompt.baziFortuneMonth);
-  params.set('baziFortuneDay', prompt.baziFortuneDay);
-  params.set('ziweiTopic', prompt.ziweiTopic);
-  params.set('ziweiQuickQuestion', prompt.ziweiQuickQuestion);
-  params.set('ziweiScope', prompt.ziweiScope);
+  appendInputStateParams(params, input);
+  appendPromptStateParams(params, prompt);
 
   return params.toString();
 }

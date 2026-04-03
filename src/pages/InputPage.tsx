@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { BIRTH_TIME_OPTIONS } from '@/lib/birth-time';
@@ -56,11 +56,18 @@ function getPersonValue(form: QueryInputState, role: PersonRole, key: keyof type
 }
 
 type BirthPlaceCascadeModule = typeof import('@/utils/core/birthPlaceCascade');
+type InputEntryMode = 'single' | 'compatibility' | 'divination';
+
+const LazyDivinationPanel = lazy(async () => {
+  const module = await import('@/components/DivinationPanel');
+  return { default: module.DivinationPanel };
+});
 
 export function InputPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [form, setForm] = useState<QueryInputState>(defaultInputState);
+  const [entryMode, setEntryMode] = useState<InputEntryMode>('single');
   const [error, setError] = useState('');
   const [isBirthPlaceModalOpen, setIsBirthPlaceModalOpen] = useState(false);
   const [activeBirthPlaceTarget, setActiveBirthPlaceTarget] = useState<PersonRole>('self');
@@ -101,12 +108,26 @@ export function InputPage() {
   }
 
   useEffect(() => {
-    if (searchParams.get('mode') === 'compatibility') {
-      setForm((current) => ({
-        ...current,
-        analysisMode: 'compatibility',
-      }));
+    const nextEntryMode =
+      searchParams.get('mode') === 'compatibility'
+        ? 'compatibility'
+        : searchParams.get('mode') === 'divination'
+          ? 'divination'
+          : 'single';
+    setEntryMode(nextEntryMode);
+
+    if (nextEntryMode === 'divination') {
+      return;
     }
+
+    setForm((current) =>
+      current.analysisMode === nextEntryMode
+        ? current
+        : {
+            ...current,
+            analysisMode: nextEntryMode,
+          },
+    );
   }, [searchParams]);
 
   useEffect(() => {
@@ -352,6 +373,7 @@ export function InputPage() {
         ...defaultPromptState,
         tab: 'bazi',
         promptSource: 'bazi',
+        baziShortcutMode: form.analysisMode === 'compatibility' ? '合婚' : defaultPromptState.baziShortcutMode,
         baziPresetId:
           form.analysisMode === 'compatibility' ? 'ai-compat-marriage' : defaultPromptState.baziPresetId,
       })}`,
@@ -427,6 +449,18 @@ export function InputPage() {
       return next;
     });
     closeBirthPlaceModal();
+  }
+
+  function updateEntryMode(value: InputEntryMode) {
+    setEntryMode(value);
+
+    if (value !== 'divination') {
+      updateField('analysisMode', value);
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set('mode', value);
+    setSearchParams(nextSearchParams, { replace: true });
   }
 
   function renderPersonForm(role: PersonRole) {
@@ -625,53 +659,90 @@ export function InputPage() {
     cityOptions.find((item) => item.id === draftCityId)?.label || '未选择城市'
   } / ${districtOptions.find((item) => item.id === draftDistrictId)?.label || '未选择区县'}`;
 
+  const divinationPanelFallback = (
+    <div className="divination-panel-shell input-mode-loading" aria-hidden="true">
+      <section className="person-section divination-form-card input-mode-loading-card">
+        <div className="person-section-head input-mode-loading-head">
+          <span className="skeleton-block input-mode-loading-title" />
+          <span className="skeleton-block input-mode-loading-line" />
+        </div>
+        <div className="input-mode-loading-methods">
+          {Array.from({ length: 6 }, (_, index) => (
+            <span className="skeleton-block input-mode-loading-method" key={index} />
+          ))}
+        </div>
+        <span className="skeleton-block input-mode-loading-textarea" />
+        <div className="input-mode-loading-controls">
+          <span className="skeleton-block input-mode-loading-control" />
+          <span className="skeleton-block input-mode-loading-control" />
+          <span className="skeleton-block input-mode-loading-chip" />
+        </div>
+        <div className="input-mode-loading-meta">
+          <span className="skeleton-block input-mode-loading-field" />
+          <span className="skeleton-block input-mode-loading-field" />
+        </div>
+      </section>
+      <div className="form-actions page-submit-actions" aria-hidden="true">
+        <span className="skeleton-block input-mode-loading-action" />
+        <span className="skeleton-block input-mode-loading-action" />
+      </div>
+    </div>
+  );
+
   return (
     <div className="page-shell input-page-shell">
       <div className="bazi-view-container">
         <div className="analysis-mode-strip">
           <div className="top-switch-control">
             <SegmentedControl
-              value={form.analysisMode}
+              value={entryMode}
               options={[
                 { label: '个人', value: 'single' as const },
                 { label: '合盘', value: 'compatibility' as const },
+                { label: '占卜', value: 'divination' as const },
               ]}
-              onChange={(value) => updateField('analysisMode', value)}
+              onChange={updateEntryMode}
             />
           </div>
         </div>
 
         <div className="analysis-view">
-          <div className="form-wrapper">
-            {renderPersonForm('self')}
-            {form.analysisMode === 'compatibility' ? renderPersonForm('partner') : null}
+          {entryMode === 'divination' ? (
+            <Suspense fallback={divinationPanelFallback}>
+              <LazyDivinationPanel />
+            </Suspense>
+          ) : (
+            <div className="form-wrapper">
+              {renderPersonForm('self')}
+              {entryMode === 'compatibility' ? renderPersonForm('partner') : null}
 
-            {error ? <div className="form-error-text global-form-error">{error}</div> : null}
+              {error ? <div className="form-error-text global-form-error">{error}</div> : null}
 
-            <div
-              className="form-actions page-submit-actions"
-              style={{ width: '100%', gridTemplateColumns: 'minmax(0, 1fr)', justifyItems: 'stretch' }}
-            >
-              <button
-                className="primary-button start-submit-button"
-                type="button"
-                onClick={handleSubmit}
-                style={{ width: '100%' }}
+              <div
+                className="form-actions page-submit-actions"
+                style={{ width: '100%', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', justifyItems: 'stretch' }}
               >
-                开始排盘
-              </button>
-              <button
-                className="secondary-page-button"
-                type="button"
-                style={{ width: '100%' }}
-                onClick={() =>
-                  navigate(`/records?tab=${form.analysisMode === 'compatibility' ? 'compatibility' : 'personal'}`)
-                }
-              >
-                历史记录
-              </button>
+                <button
+                  className="secondary-page-button"
+                  type="button"
+                  style={{ width: '100%' }}
+                  onClick={() =>
+                    navigate(`/records?tab=${entryMode === 'compatibility' ? 'compatibility' : 'personal'}`)
+                  }
+                >
+                  历史记录
+                </button>
+                <button
+                  className="primary-button start-submit-button"
+                  type="button"
+                  onClick={handleSubmit}
+                  style={{ width: '100%' }}
+                >
+                  开始排盘
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 

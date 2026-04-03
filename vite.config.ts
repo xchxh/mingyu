@@ -5,6 +5,9 @@ import { getManualChunk } from './build/chunking';
 
 export default defineConfig({
   plugins: [react()],
+  worker: {
+    format: 'es',
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

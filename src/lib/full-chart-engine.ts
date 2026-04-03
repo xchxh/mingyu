@@ -23,6 +23,24 @@ export type ZiweiRuntime = {
   payloadByScope: Record<ScopeType, AnalysisPayloadV1>;
 };
 
+export function buildZiweiPayloadByScope(params: {
+  astrolabe: any;
+  horoscope: any;
+}) {
+  const scopes: ScopeType[] = ['origin', 'decadal', 'yearly', 'monthly', 'daily', 'hourly'];
+
+  return Object.fromEntries(
+    scopes.map((scope) => [
+      scope,
+      buildAnalysisPayloadV1({
+        astrolabe: params.astrolabe,
+        horoscope: params.horoscope,
+        currentScope: scope,
+      }),
+    ]),
+  ) as Record<ScopeType, AnalysisPayloadV1>;
+}
+
 export function buildPersonFromInput(input: {
   gender: 'male' | 'female';
   year: string;
@@ -79,24 +97,43 @@ export async function calculateFullZiweiChart(input: ChartInput): Promise<ZiweiR
   const astrolabe = await buildAstrolabeFromInput(input);
   const { dateStr, hourIndex } = getDefaultHoroscopeContext();
   const horoscope = buildHoroscope(astrolabe, dateStr, hourIndex);
-
-  const scopes: ScopeType[] = ['origin', 'decadal', 'yearly', 'monthly', 'daily', 'hourly'];
-  const payloadByScope = Object.fromEntries(
-    scopes.map((scope) => [
-      scope,
-      buildAnalysisPayloadV1({
-        astrolabe,
-        horoscope,
-        currentScope: scope,
-      }),
-    ]),
-  ) as Record<ScopeType, AnalysisPayloadV1>;
+  const payloadByScope = buildZiweiPayloadByScope({
+    astrolabe,
+    horoscope,
+  });
 
   return {
     astrolabe,
     horoscope,
     payloadByScope,
   };
+}
+
+export async function calculateZiweiPayloadByScope(input: ChartInput) {
+  const astrolabe = await buildAstrolabeFromInput(input);
+  const { dateStr, hourIndex } = getDefaultHoroscopeContext();
+  const horoscope = buildHoroscope(astrolabe, dateStr, hourIndex);
+
+  return buildZiweiPayloadByScope({
+    astrolabe,
+    horoscope,
+  });
+}
+
+export async function calculateZiweiDisplayPayload(params: {
+  input: ChartInput;
+  dateStr: string;
+  hourIndex: number;
+  scope: ScopeType;
+}) {
+  const astrolabe = await buildAstrolabeFromInput(params.input);
+  const horoscope = buildHoroscope(astrolabe, params.dateStr, params.hourIndex);
+
+  return buildAnalysisPayloadV1({
+    astrolabe,
+    horoscope,
+    currentScope: params.scope,
+  });
 }
 
 export function buildZiweiChartInput(input: {

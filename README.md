@@ -70,7 +70,7 @@
 | 框架 | React 19 + TypeScript 5.9 |
 | 构建 | Vite 7 |
 | 路由 | React Router 7 |
-| 历法计算 | tyme4ts / lunar-typescript / iztro |
+| 历法计算 | tyme4ts / iztro |
 | 测试 | Node.js 原生测试运行器 |
 
 ## 项目结构

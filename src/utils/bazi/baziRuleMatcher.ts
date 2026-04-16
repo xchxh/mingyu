@@ -959,6 +959,10 @@ function matchMaxTotalStemCounts(
     return true
   }
 
+  if (!visibleStems && !hiddenStems) {
+    return false
+  }
+
   const stemCounts = [...(visibleStems || []), ...(hiddenStems || [])].reduce<Record<string, number>>((counts, stem) => {
     counts[stem] = (counts[stem] || 0) + 1
     return counts
@@ -975,7 +979,11 @@ function matchMaxVisibleStemCounts(
     return true
   }
 
-  const stemCounts = (visibleStems || []).reduce<Record<string, number>>((counts, stem) => {
+  if (!visibleStems) {
+    return false
+  }
+
+  const stemCounts = visibleStems.reduce<Record<string, number>>((counts, stem) => {
     counts[stem] = (counts[stem] || 0) + 1
     return counts
   }, {})

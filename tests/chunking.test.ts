@@ -23,10 +23,6 @@ test('紫微相关重型依赖会进入 ziwei-engine 分块', () => {
     'tyme-vendor',
   );
   assert.equal(
-    getManualChunk('D:/project/node_modules/lunar-typescript/dist/index.mjs'),
-    'lunar-vendor',
-  );
-  assert.equal(
     getManualChunk('D:/project/src/lib/iztro/runtime-helpers.ts'),
     'ziwei-core',
   );

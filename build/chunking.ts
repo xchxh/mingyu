@@ -15,10 +15,6 @@ export function getManualChunk(id: string) {
     return 'tyme-vendor';
   }
 
-  if (id.includes('node_modules/lunar-typescript')) {
-    return 'lunar-vendor';
-  }
-
   if (
     id.includes('src/lib/iztro') ||
     id.includes('src/lib/ziwei-') ||

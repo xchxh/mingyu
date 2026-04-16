@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { BaziFortuneScope } from '@/lib/query-state';
 import type { BaziChartResult } from '@/utils/bazi/baziTypes';
-import { getMonthDaysInfo, getYearInfo } from '@/utils/bazi/calendarTool';
+import {
+  getBaziDayIndexByDate,
+  getBaziMonthIndexByDate,
+  getMonthDaysInfo,
+  getYearInfo,
+} from '@/utils/bazi/calendarTool';
 import {
   buildFortuneSelectionContext,
   normalizeFortuneSelection,
@@ -22,21 +27,18 @@ const baziFortuneScopeLabelMap: Record<BaziFortuneScope, string> = {
 
 function getCurrentLuckCycle(result: BaziChartResult) {
   const currentYear = new Date().getFullYear();
-  return (
-    result.luckInfo.cycles.find((cycle) =>
-      cycle.years?.some((item) => item.year === currentYear),
-    ) ??
-    result.luckInfo.cycles[0] ??
-    null
-  );
+  for (let i = result.luckInfo.cycles.length - 1; i >= 0; i -= 1) {
+    const cycle = result.luckInfo.cycles[i];
+    if (cycle.years?.some((item) => item.year === currentYear)) {
+      return cycle;
+    }
+  }
+
+  return result.luckInfo.cycles[0] ?? null;
 }
 
 function splitGanZhi(value: string) {
   return [value.charAt(0), value.charAt(1)];
-}
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month, 0).getDate();
 }
 
 function formatBaziCycleDisplay(ganZhi: string, isXiaoyun: boolean) {
@@ -89,10 +91,12 @@ export function BaziFortuneSelector(props: { result: BaziChartResult }) {
     result.luckInfo.cycles.findIndex((item) => item === currentCycle),
   );
   const now = new Date();
+  const initialMonth = getBaziMonthIndexByDate(now.getFullYear(), now) ?? 1;
+  const initialDay = getBaziDayIndexByDate(now.getFullYear(), initialMonth, now) ?? 1;
   const [selectedCycleIndex, setSelectedCycleIndex] = useState(currentCycleIndex);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [selectedDay, setSelectedDay] = useState(now.getDate());
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedDay, setSelectedDay] = useState(initialDay);
 
   const selectedCycle = result.luckInfo.cycles[selectedCycleIndex] ?? result.luckInfo.cycles[0];
   const yearOptions = selectedCycle?.years ?? [];
@@ -120,11 +124,12 @@ export function BaziFortuneSelector(props: { result: BaziChartResult }) {
   }, [selectedMonth, monthOptions]);
 
   useEffect(() => {
-    const maxDay = getDaysInMonth(selectedYear, selectedMonth);
+    const maxDay = dayOptions.length;
+    if (!maxDay) return;
     if (selectedDay > maxDay) {
       setSelectedDay(1);
     }
-  }, [selectedDay, selectedMonth, selectedYear]);
+  }, [dayOptions.length, selectedDay]);
 
   return (
     <section className="fortune-selector-card">
@@ -222,11 +227,11 @@ export function BaziFortuneSelector(props: { result: BaziChartResult }) {
               return (
                 <button
                   type="button"
-                  key={`${selectedYear}-${selectedMonth}-${item.day}`}
+                  key={item.solarDate}
                   className={`fortune-item ${item.day === selectedDay ? 'active' : ''}`}
                   onClick={() => setSelectedDay(item.day)}
                 >
-                  <div className="fortune-year">{item.day}</div>
+                  <div className="fortune-year">{item.solarLabel}</div>
                   <div className="fortune-age">{item.lunar}</div>
                   <div className="fortune-vertical-group">
                     <div className="char-pair">
@@ -263,14 +268,17 @@ export function BaziFortuneModal(props: {
     [currentCycle, result.luckInfo.cycles],
   );
   const now = useMemo(() => new Date(), []);
+  const currentQuickYear = now.getFullYear();
+  const currentQuickMonth = getBaziMonthIndexByDate(currentQuickYear, now) ?? 1;
+  const currentQuickDay = getBaziDayIndexByDate(currentQuickYear, currentQuickMonth, now) ?? 1;
   const currentQuickSelection = useMemo(
     () => ({
       cycleIndex: currentCycleIndex,
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
-      day: now.getDate(),
+      year: currentQuickYear,
+      month: currentQuickMonth,
+      day: currentQuickDay,
     }),
-    [currentCycleIndex, now],
+    [currentCycleIndex, currentQuickDay, currentQuickMonth, currentQuickYear],
   );
   const [draftScope, setDraftScope] = useState<BaziFortuneScope>(normalizedSelection.scope);
   const [draftCycleIndex, setDraftCycleIndex] = useState(normalizedSelection.cycleIndex ?? 0);
@@ -305,18 +313,19 @@ export function BaziFortuneModal(props: {
   }, [draftYear, yearOptions]);
 
   useEffect(() => {
-    if (draftMonth < 1 || draftMonth > 12) {
+    if (!monthOptions.length) return;
+    if (draftMonth < 1 || draftMonth > monthOptions.length) {
       setDraftMonth(1);
     }
-  }, [draftMonth]);
+  }, [draftMonth, monthOptions.length]);
 
   useEffect(() => {
-    if (!draftYear || !draftMonth) return;
-    const maxDay = getDaysInMonth(draftYear, draftMonth);
+    const maxDay = dayOptions.length;
+    if (!maxDay) return;
     if (draftDay < 1 || draftDay > maxDay) {
       setDraftDay(1);
     }
-  }, [draftDay, draftMonth, draftYear]);
+  }, [dayOptions.length, draftDay]);
 
   const draftSelection = useMemo(
     () =>
@@ -472,9 +481,9 @@ export function BaziFortuneModal(props: {
                       setDraftYear(item.year);
                       setDraftScope('year');
                     }}
-                  >
-                    <strong>{item.year}年</strong>
-                    <span>{item.ganZhi}</span>
+                    >
+                      <strong>{item.year}年</strong>
+                      <span>{item.ganZhi}</span>
                     <span>{item.age} 岁</span>
                   </button>
                 ))}
@@ -517,6 +526,7 @@ export function BaziFortuneModal(props: {
                     >
                       <strong>{monthNumber}月</strong>
                       <span>{item.month}</span>
+                      <span>{item.startDate} 至 {item.endDate}</span>
                       <span>{item.ganZhi}</span>
                     </button>
                   );
@@ -541,13 +551,13 @@ export function BaziFortuneModal(props: {
                 >
                   <strong>流月</strong>
                   <span>
-                    {draftYear}年 {draftMonth}月
+                    {draftYear}年 {monthOptions[draftMonth - 1]?.month ?? ''}
                   </span>
                 </button>
                 {dayOptions.map((item) => (
                   <button
                     type="button"
-                    key={`${draftYear}-${draftMonth}-${item.day}`}
+                    key={item.solarDate}
                     className={`fortune-modal-item ${
                       isDayDetailActive && draftDay === item.day ? 'is-active is-selected' : ''
                     }`}
@@ -556,7 +566,7 @@ export function BaziFortuneModal(props: {
                       setDraftScope('day');
                     }}
                   >
-                    <strong>{item.day}日</strong>
+                    <strong>{item.solarLabel}</strong>
                     <span>{item.ganZhi}</span>
                     <span>{item.lunar}</span>
                   </button>

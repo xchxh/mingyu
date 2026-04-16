@@ -658,7 +658,7 @@ export const getShenShaCategory = (shensha: string): string => {
  * @param shensha 神煞名称
  * @returns 解释文本
  */
-export const getShenShaDescription = (shensha: string): string => {
+const getShenShaDescription = (shensha: string): string => {
   return shenShaDescriptions[shensha] || '此神煞的详细解释暂未收录，建议咨询专业命理师获取更准确的解读。'
 }
 
@@ -667,7 +667,7 @@ export const getShenShaDescription = (shensha: string): string => {
  * @param shensha 神煞名称
  * @returns 影响列表
  */
-export const getShenShaEffects = (shensha: string): { type: string; description: string }[] => {
+const getShenShaEffects = (shensha: string): { type: string; description: string }[] => {
   return shenShaEffects[shensha] || [{ type: '影响', description: '此神煞的具体影响需要结合整体命局分析' }]
 }
 
@@ -676,7 +676,7 @@ export const getShenShaEffects = (shensha: string): { type: string; description:
  * @param shensha 神煞名称
  * @returns 建议文本
  */
-export const getShenShaAdvice = (shensha: string): string => {
+const getShenShaAdvice = (shensha: string): string => {
   return shenShaAdvice[shensha] || '建议结合整体命局，咨询专业命理师获取个性化的指导建议。'
 }
 
@@ -685,7 +685,7 @@ export const getShenShaAdvice = (shensha: string): string => {
  * @param shensha 神煞名称
  * @returns 注意事项列表或 null
  */
-export const getShenShaTaboos = (shensha: string): string[] | null => {
+const getShenShaTaboos = (shensha: string): string[] | null => {
   return shenShaTaboos[shensha] || null
 }
 
@@ -694,7 +694,7 @@ export const getShenShaTaboos = (shensha: string): string[] | null => {
  * @param shensha 神煞名称
  * @returns CSS 类名
  */
-export const getShenShaCategoryClass = (shensha: string): string => {
+const getShenShaCategoryClass = (shensha: string): string => {
   const category = getShenShaCategory(shensha)
   const classMap: StringMap = {
     '贵人': 'category-noble',

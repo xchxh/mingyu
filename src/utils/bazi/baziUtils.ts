@@ -91,14 +91,14 @@ export const getShenShaType = (shensha: string): '吉' | '凶' | '中性' => {
  * @param month - 月份 (1-12)
  * @returns '春季' | '夏季' | '秋季' | '冬季'
  */
-export const getMonthSeason = (month: number): '春季' | '夏季' | '秋季' | '冬季' => {
+const getMonthSeason = (month: number): '春季' | '夏季' | '秋季' | '冬季' => {
   if (month >= 3 && month <= 5) return '春季'
   if (month >= 6 && month <= 8) return '夏季'
   if (month >= 9 && month <= 11) return '秋季'
   return '冬季'
 }
 
-export const getWuxingClass = (character: string) => {
+const getWuxingClass = (character: string) => {
   const wuxingMap: { [key: string]: string } = {
     '甲': 'wuxing-mu', '乙': 'wuxing-mu', '寅': 'wuxing-mu', '卯': 'wuxing-mu', '木': 'wuxing-mu',
     '丙': 'wuxing-huo', '丁': 'wuxing-huo', '巳': 'wuxing-huo', '午': 'wuxing-huo', '火': 'wuxing-huo',
@@ -109,7 +109,7 @@ export const getWuxingClass = (character: string) => {
   return wuxingMap[character] || ''
 }
 
-export const sortShenSha = (shenSha: string[]): string[] => {
+const sortShenSha = (shenSha: string[]): string[] => {
   const order = ['天乙贵人', '月德贵人', '天德贵人', '福星贵人', '文昌贵人', '禄神', '将星', '金舆', '红鸾', '天喜']
   return shenSha.sort((a, b) => {
     const aIndex = order.indexOf(a)
@@ -121,7 +121,7 @@ export const sortShenSha = (shenSha: string[]): string[] => {
   })
 }
 
-export const getShenShaTypeClass = (shensha: string): string => {
+const getShenShaTypeClass = (shensha: string): string => {
   const type = getShenShaType(shensha)
   if (type === '吉') return 'type-lucky'
   if (type === '凶') return 'type-unlucky'

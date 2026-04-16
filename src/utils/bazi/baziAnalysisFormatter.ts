@@ -1,116 +1,11 @@
-import type { Person } from '@/composables/useFormState'
 import type { BaziChartResult } from './baziTypes'
 import { getCurrentTimeDescription } from './calendarTool'
-import { pillarSummaries, tenGodAnalysis, monthAnalysis, shenShaAnalysis, combinedInfluence } from './baziAnalysisData'
 import { getLuckCycleForDate } from './luckTiming'
-
-export interface BaziData {
-  year: number;
-  month: number;
-  day: number;
-  timeIndex: number;
-  gender: string;
-  useTrueSolarTime?: boolean;
-  birthHour?: number;
-  birthMinute?: number;
-  birthPlace?: string;
-  birthLongitude?: number;
-}
-
-export function getPillarSummary(baziResult: BaziChartResult, pillarKey: keyof BaziChartResult['pillars'], tenGod: string): string {
-  if (!baziResult) return ''
-  return pillarSummaries[pillarKey][tenGod as keyof typeof pillarSummaries[keyof typeof pillarSummaries]] || pillarSummaries[pillarKey].default
-}
-
-export function getTenGodData(tenGod: string) {
-  return tenGodAnalysis[tenGod as keyof typeof tenGodAnalysis] || tenGodAnalysis.default
-}
-
-export function getMonthWellness(season: string) {
-  return monthAnalysis.season[season as keyof typeof monthAnalysis.season]?.wellness
-}
-
-export function getShenShaInfluence(shenShas: string[]): string {
-  return shenShas.map(shenSha => shenShaAnalysis.influence[shenSha as keyof typeof shenShaAnalysis.influence] || '').join(' ')
-}
-
-export function getShenShaAdvice(shenSha: string): string {
-  return shenShaAnalysis.advice[shenSha as keyof typeof shenShaAnalysis.advice] || shenShaAnalysis.advice.default
-}
-
-export function getCombinedInfluence(type: keyof typeof combinedInfluence, key1: string, key2: string): string | undefined {
-  const section = combinedInfluence[type]
-  const combinedKey = `${key1}-${key2}`
-  if (section && combinedKey in section) {
-    return section[combinedKey as keyof typeof section]
-  }
-  return undefined
-}
-
-export function getAnalysisLabel(key: string): string {
-  const labels: Record<string, string> = {
-    tianGan: '天干',
-    diZhi: '地支',
-    zhengZhu: '正柱'
-  }
-  return labels[key] || key
-}
-
-export function getCompatibilityAnalysisLabel(key: string): string {
-  const labels: Record<string, string> = {
-    tianGanRelation: '天干关系',
-    diZhiRelation: '地支关系',
-    wuxingBalance: '五行平衡',
-    overallCompatibility: '综合匹配',
-    ganHe: '天干五合',
-    zhiChong: '地支相冲',
-    zhiHe: '地支六合',
-    zhiXing: '地支相刑',
-    zhiHai: '地支相害',
-    sync: '同步性',
-    wuxingComp: '五行互补',
-    shenShaComp: '神煞互补',
-    summary: '总结'
-  }
-  return labels[key] || key
-}
-
-export function getMonthData(tenGod: string, season: string) {
-  const tenGodData = monthAnalysis.tenGod[tenGod as keyof typeof monthAnalysis.tenGod] || monthAnalysis.tenGod.default
-  const seasonData = monthAnalysis.season[season as keyof typeof monthAnalysis.season] || {}
-  const healthCaution = tenGodData.caution?.health || '注意身体'
-  return { ...tenGodData, ...seasonData, healthCaution }
-}
-
-export function getShenShaSpecialAdvice(shenShas: string[]): string {
-  let advice = ''
-  shenShas.forEach(shenSha => {
-    const specialAdvice = shenShaAnalysis.advice[shenSha as keyof typeof shenShaAnalysis.advice]
-    if (specialAdvice && specialAdvice !== shenShaAnalysis.advice.default) {
-      advice += `${shenSha}: ${specialAdvice} `
-    }
-  })
-  return advice || shenShaAnalysis.advice.default
-}
-
-export const createBaziDataFromPerson = (person: Person): BaziData => {
-  return {
-    ...person,
-    year: Number(person.year),
-    month: Number(person.month),
-    day: Number(person.day),
-    timeIndex: Number(person.timeIndex),
-    useTrueSolarTime: Boolean(person.useTrueSolarTime),
-    birthHour: person.birthHour,
-    birthMinute: person.birthMinute,
-    birthPlace: person.birthPlace || '',
-    birthLongitude: person.birthLongitude
-  }
-}
 
 interface FormatBaziOptions {
   includeRules?: boolean;
   includeShensha?: boolean;
+  includeShenShaAnalysis?: boolean;
   includeWuxing?: boolean;
   includeCurrentTiming?: boolean;
   includeSpecialPillars?: boolean;
@@ -118,7 +13,16 @@ interface FormatBaziOptions {
   includeCurrentLiunian?: boolean;
 }
 
-export type PromptChartScene = 'general' | 'concise' | 'comprehensive' | 'fortune' | 'compatibility'
+export type PromptChartScene = 'general' | 'fortune' | 'compatibility' | 'comprehensive' | 'concise'
+
+function formatSignedScore(value: number): string {
+  const rounded = Number(value.toFixed(1))
+  return `${rounded >= 0 ? '+' : ''}${rounded}`
+}
+
+function joinOrFallback(values: string[] | undefined, fallback = '暂无'): string {
+  return values && values.length > 0 ? values.join('、') : fallback
+}
 
 function buildBaziText(
   baziResult: BaziChartResult,
@@ -126,10 +30,11 @@ function buildBaziText(
 ): string {
   if (!baziResult) return '无法获取八字数据。'
 
-  const { solarDate, timeInfo, dayMaster, pillars, tenGods, hiddenStems, hiddenTenGods, nayin, pillarLifeStages, kongWang, shensha, shenShaAnalysis } = baziResult
+  const { solarDate, timeInfo, dayMaster, pillars, tenGods, hiddenStems, hiddenTenGods, nayin, pillarLifeStages, shensha, shenShaAnalysis } = baziResult
   const {
     includeRules = true,
     includeShensha = true,
+    includeShenShaAnalysis = false,
     includeWuxing = true,
     includeCurrentTiming = true,
     includeSpecialPillars = true,
@@ -156,15 +61,27 @@ function buildBaziText(
   result += '\n【核心判断依据】\n'
   const analysis = baziResult.analysis
   result += `旺衰: ${analysis.dayMasterStrength.status}（得分:${analysis.dayMasterStrength.score}）\n`
+  result += `旺衰拆分: 月令:${formatSignedScore(analysis.dayMasterStrength.details.seasonalScore)} | 成局:${formatSignedScore(analysis.dayMasterStrength.details.formationStrength)} | 通根:${formatSignedScore(analysis.dayMasterStrength.details.rootStrength)} | 帮扶:${formatSignedScore(analysis.dayMasterStrength.details.supportStrength)} | 克泄耗:${formatSignedScore(-analysis.dayMasterStrength.details.constraintStrength)}\n`
   result += `格局: ${analysis.mingGe.pattern}\n`
+  if (analysis.mingGe.basis) {
+    result += `格局依据: ${analysis.mingGe.basis}\n`
+  }
   if (analysis.usefulGod) {
-    if (analysis.usefulGod.favorableWuxing?.length || analysis.usefulGod.unfavorableWuxing?.length) {
-      result += `喜神五行: ${(analysis.usefulGod.favorableWuxing || []).join('、') || '暂无'} | 忌神五行: ${(analysis.usefulGod.unfavorableWuxing || []).join('、') || '暂无'}\n`
-    }
-    if (analysis.usefulGod.favorable?.length || analysis.usefulGod.unfavorable?.length) {
-      result += `喜用十神: ${analysis.usefulGod.favorable.join('、') || '暂无'} | 忌神十神: ${analysis.usefulGod.unfavorable.join('、') || '暂无'}\n`
-    }
-    result += `喜用: ${analysis.usefulGod.useful} | 忌神: ${analysis.usefulGod.avoid}\n`
+    const primaryFavorableWuxing = analysis.usefulGod.primaryFavorableWuxing || analysis.usefulGod.favorableWuxing?.[0] || '暂无'
+    const secondaryFavorableWuxing = analysis.usefulGod.secondaryFavorableWuxing || analysis.usefulGod.favorableWuxing?.slice(1) || []
+    const primaryUnfavorableWuxing = analysis.usefulGod.primaryUnfavorableWuxing || analysis.usefulGod.unfavorableWuxing?.[0] || '暂无'
+    const secondaryUnfavorableWuxing = analysis.usefulGod.secondaryUnfavorableWuxing || analysis.usefulGod.unfavorableWuxing?.slice(1) || []
+    const primaryFavorableTenGods = analysis.usefulGod.primaryFavorable || analysis.usefulGod.primaryFavorableWuxing
+      ? (analysis.usefulGod.primaryFavorable || analysis.usefulGod.favorable?.slice(0, 2) || [])
+      : []
+    const primaryUnfavorableTenGods = analysis.usefulGod.primaryUnfavorable || analysis.usefulGod.primaryUnfavorableWuxing
+      ? (analysis.usefulGod.primaryUnfavorable || analysis.usefulGod.unfavorable?.slice(0, 2) || [])
+      : []
+
+    result += `用神: 主用${primaryFavorableWuxing}${secondaryFavorableWuxing.length ? '+辅' + secondaryFavorableWuxing.join('、') : ''}(${joinOrFallback(primaryFavorableTenGods)}) | 主忌${primaryUnfavorableWuxing}${secondaryUnfavorableWuxing.length ? '+次' + secondaryUnfavorableWuxing.join('、') : ''}(${joinOrFallback(primaryUnfavorableTenGods)})\n`
+    result += `喜忌五行: ${joinOrFallback(analysis.usefulGod.favorableWuxing)} | ${joinOrFallback(analysis.usefulGod.unfavorableWuxing)}\n`
+    result += `喜忌十神: ${joinOrFallback(analysis.usefulGod.favorable)} | ${joinOrFallback(analysis.usefulGod.unfavorable)}\n`
+    result += `类别: 喜${analysis.usefulGod.useful} 忌${analysis.usefulGod.avoid}\n`
     if (includeRules && analysis.usefulGod.primaryReason) {
       result += `主导规则: ${analysis.usefulGod.primaryReason}\n`
     }
@@ -185,11 +102,11 @@ function buildBaziText(
     const tenGod = tenGods[key]
     const nayinValue = nayin?.[key] || ''
     const lifeStage = pillarLifeStages?.[key] || ''
-    const kongWangFlag = kongWang?.[key] ? '(空亡)' : ''
+    const shenShaValue = shensha?.[key]?.join(',') || ''
+    const kongWangFlag = shenShaValue.includes('空亡') ? '(空亡)' : ''
     const hiddenStemValues = hiddenStems?.[key] || []
     const hiddenTenGodValues = hiddenTenGods?.[key] || []
     const hiddenStr = hiddenStemValues.map((stem, idx) => `${stem}${hiddenTenGodValues[idx] ? `[${hiddenTenGodValues[idx]}]` : ''}`).join('')
-    const shenShaValue = shensha?.[key]?.join(',') || ''
     const shenShaExplain = shenShaAnalysis?.[key]?.join(' | ') || ''
 
     const pillarParts = [
@@ -203,6 +120,7 @@ function buildBaziText(
     if (hiddenStr) result += `  藏干: ${hiddenStr}\n`
     if (includeShensha && shenShaValue) result += `  神煞: ${shenShaValue}\n`
     if (includeShensha && shenShaExplain) result += `  提示: ${shenShaExplain}\n`
+    if (!includeShensha && includeShenShaAnalysis && shenShaExplain) result += `  互参: ${shenShaExplain}\n`
   })
 
   const globalShenShaValue = shensha?.global?.join(',') || ''
@@ -212,6 +130,9 @@ function buildBaziText(
     if (globalShenShaExplain) {
       result += `  提示: ${globalShenShaExplain}\n`
     }
+  }
+  if (!includeShensha && includeShenShaAnalysis && globalShenShaExplain) {
+    result += `全局互参: ${globalShenShaExplain}\n`
   }
 
   if (includeWuxing && baziResult.wuxingStrength?.percentages) {
@@ -265,6 +186,7 @@ function getPromptSceneOptions(scene: PromptChartScene): FormatBaziOptions {
     return {
       includeRules: true,
       includeShensha: false,
+      includeShenShaAnalysis: true,
       includeWuxing: true,
       includeCurrentTiming: true,
       includeSpecialPillars: true,
@@ -277,6 +199,7 @@ function getPromptSceneOptions(scene: PromptChartScene): FormatBaziOptions {
     return {
       includeRules: true,
       includeShensha: false,
+      includeShenShaAnalysis: true,
       includeWuxing: false,
       includeCurrentTiming: true,
       includeSpecialPillars: false,
@@ -289,6 +212,7 @@ function getPromptSceneOptions(scene: PromptChartScene): FormatBaziOptions {
     return {
       includeRules: true,
       includeShensha: false,
+      includeShenShaAnalysis: false,
       includeWuxing: false,
       includeCurrentTiming: false,
       includeSpecialPillars: false,
@@ -301,8 +225,9 @@ function getPromptSceneOptions(scene: PromptChartScene): FormatBaziOptions {
     return {
       includeRules: true,
       includeShensha: false,
+      includeShenShaAnalysis: false,
       includeWuxing: false,
-      includeCurrentTiming: true,
+      includeCurrentTiming: false,
       includeSpecialPillars: false,
       includeLuckOverview: false,
       includeCurrentLiunian: false
@@ -312,6 +237,7 @@ function getPromptSceneOptions(scene: PromptChartScene): FormatBaziOptions {
   return {
     includeRules: true,
     includeShensha: false,
+    includeShenShaAnalysis: true,
     includeWuxing: false,
     includeCurrentTiming: true,
     includeSpecialPillars: true,
@@ -326,32 +252,10 @@ export function formatBaziForPrompt(baziResult: BaziChartResult, _selectedOption
   return buildBaziText(baziResult, getPromptSceneOptions(scene))
 }
 
-export function formatBaziForDisplay(baziResult: BaziChartResult): string {
-  if (!baziResult) return '无法获取八字数据。'
 
-  return buildBaziText(baziResult, {
-    includeRules: true,
-    includeShensha: true,
-    includeWuxing: true,
-    includeCurrentTiming: true
-  })
-}
 
-export function formatBaziForAI(baziResult: BaziChartResult, selectedOption: unknown = null): string {
-  return formatBaziForPrompt(baziResult, selectedOption)
-}
 
-export function formatHoroscopeSelectionForAI(horoscopeState: { selectedDate: Date; selectedTime: string; }): string {
-  if (!horoscopeState || !horoscopeState.selectedDate) {
-    return '未指定具体日期'
-  }
 
-  const { selectedDate, selectedTime } = horoscopeState
-  let dateInfo = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`
 
-  if (selectedTime) {
-    dateInfo += ` ${selectedTime}`
-  }
 
-  return dateInfo
-}
+

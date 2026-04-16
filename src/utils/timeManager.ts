@@ -43,7 +43,7 @@ export class TimeManager {
     if (typeof override === 'number' && Number.isFinite(override)) {
       return override;
     }
-    // Date#getTimezoneOffset 返回“本地到UTC需要加多少分钟”，因此本地偏移 = -getTimezoneOffset
+    // Date#getTimezoneOffset 返回"本地到UTC需要加多少分钟"，因此本地偏移 = -getTimezoneOffset
     return -date.getTimezoneOffset();
   }
 
@@ -212,5 +212,3 @@ export class TimeManager {
 // 导出便捷函数
 export const getDivinationTime = TimeManager.getDivinationTime.bind(TimeManager);
 export const generateYaosByTime = TimeManager.generateYaosByTime.bind(TimeManager);
-export const generateYaosByRandom = TimeManager.generateYaosByRandom.bind(TimeManager);
-export const setTimezoneOffsetMinutesOverride = TimeManager.setTimezoneOffsetMinutesOverride.bind(TimeManager);

@@ -46,7 +46,7 @@ export const DIVINATION_METHOD_OPTIONS: Array<{
   },
 ];
 
-export const DIVINATION_EXAMPLES: Record<DivinationMethodId, string[]> = {
+const DIVINATION_EXAMPLES: Record<DivinationMethodId, string[]> = {
   random: [
     '我现在最该注意的方向是什么？',
     '这件事接下来更适合主动还是等待？',

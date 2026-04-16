@@ -1,6 +1,6 @@
 // 三山国王灵签数据 - 与原项目完全一致
 
-export interface SsgwSign {
+interface SsgwSign {
   id: number;
   title: string;
   qianwen: string;
@@ -1355,18 +1355,18 @@ export const SSGW_SIGNS: SsgwSign[] = [
 ];
 
 // 获取随机签文
-export function getRandomSign(): SsgwSign {
+function getRandomSign(): SsgwSign {
   const randomIndex = Math.floor(Math.random() * SSGW_SIGNS.length);
   return SSGW_SIGNS[randomIndex];
 }
 
 // 根据ID获取签文
-export function getSignById(id: number): SsgwSign | undefined {
+function getSignById(id: number): SsgwSign | undefined {
   return SSGW_SIGNS.find((sign) => sign.id === id);
 }
 
 // 模拟投掷圣杯 - 按照原项目逻辑：两个杯子的正反面组合
-export function throwHolyGrail(): {
+function throwHolyGrail(): {
   result: '圣杯' | '笑杯' | '阴杯';
   bei1: 'ping' | 'tu';
   bei2: 'ping' | 'tu';

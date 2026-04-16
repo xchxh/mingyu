@@ -1,16 +1,19 @@
 import {
   Wuxing,
-  BaziAnalysisResult
+  BaziAnalysisResult,
+  SeasonInfo
 } from './baziTypes'
 import type { HiddenStems, Pillars } from './baziTypes'
 import {
+  analyzeFormation,
   analyzeRoot,
   analyzeSupport,
+  analyzeConstraint,
   analyzeSeasonalStatus,
-  analyzeDayMasterStrength,
-  determinePattern,
-  determineUsefulGod
-} from './baziAnalyzerHelpers'
+  analyzeDayMasterStrength
+} from './baziStrengthAnalyzer'
+import { determinePattern } from './baziPatternStrategy'
+import { determineUsefulGod } from './baziUsefulGodStrategy'
 import { createBaziAnalysisPipeline } from './baziAnalysisPipeline'
 
 // Re-implement BaziAnalyzer based on usage in baziCalculator.ts
@@ -32,8 +35,10 @@ export class BaziAnalyzer {
       getWuxing: this.getWuxing,
       getTenGod: this.getTenGod,
       getSeasonStatus: this.getSeasonStatus,
+      analyzeFormation,
       analyzeRoot,
       analyzeSupport,
+      analyzeConstraint,
       analyzeSeasonalStatus,
       analyzeDayMasterStrength,
       determinePattern,
@@ -42,11 +47,17 @@ export class BaziAnalyzer {
   }
 
   // Main analysis function
-  public analyzeBaziChart(pillars: Pillars, hiddenStems: HiddenStems, monthCommander?: string): BaziAnalysisResult {
+  public analyzeBaziChart(
+    pillars: Pillars,
+    hiddenStems: HiddenStems,
+    monthCommander?: string,
+    seasonInfo?: Pick<SeasonInfo, 'currentJieqi'>
+  ): BaziAnalysisResult {
     return this.pipeline.run({
       pillars,
       hiddenStems,
-      monthCommander
+      monthCommander,
+      seasonInfo
     })
   }
 }

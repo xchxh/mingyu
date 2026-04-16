@@ -6,7 +6,7 @@ const COMPATIBILITY_HISTORY_STORAGE_KEY = 'prompt_studio_compatibility_history_v
 const DIVINATION_HISTORY_STORAGE_KEY = 'prompt_studio_divination_history_v1';
 const MAX_HISTORY_RECORDS = 20;
 
-export type PersonalHistoryRecord = {
+type PersonalHistoryRecord = {
   id: string;
   type: 'single';
   name: string;
@@ -16,7 +16,7 @@ export type PersonalHistoryRecord = {
   updatedAt: string;
 };
 
-export type CompatibilityHistoryRecord = {
+type CompatibilityHistoryRecord = {
   id: string;
   type: 'compatibility';
   name: string;
@@ -36,11 +36,6 @@ export type DivinationHistoryRecord = {
   session: DivinationSession;
   updatedAt: string;
 };
-
-export type AnyHistoryRecord =
-  | PersonalHistoryRecord
-  | CompatibilityHistoryRecord
-  | DivinationHistoryRecord;
 
 function getStorage() {
   if (typeof window === 'undefined') {

@@ -78,4 +78,12 @@ test('无关模块保持默认分块策略', () => {
     getManualChunk('D:/project/src/pages/InputPage.tsx'),
     undefined,
   );
+  assert.equal(
+    getManualChunk('D:/project/src/lib/templates.ts'),
+    undefined,
+  );
+  assert.equal(
+    getManualChunk('D:/project/src/lib/synastry-prompts.ts'),
+    undefined,
+  );
 });

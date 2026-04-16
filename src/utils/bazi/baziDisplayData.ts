@@ -5,10 +5,10 @@
  * It serves as a centralized "knowledge base" to be used across the application.
  */
 
-import { TEN_GODS_DEFINITIONS } from './baziCoreData'
+import { TEN_GODS_DEFINITIONS } from './baziElementData'
 
 // 十二长生详解
-export const LIFE_STAGE_DESCRIPTIONS: Record<string, { meaning: string; characteristics: string; advice: string }> = {
+const LIFE_STAGE_DESCRIPTIONS: Record<string, { meaning: string; characteristics: string; advice: string }> = {
   '长生': {
     meaning: '万物萌发，如人初生',
     characteristics: '充满活力，温和善良，虽有冲劲但稍显稚嫩。',
@@ -72,7 +72,7 @@ export const LIFE_STAGE_DESCRIPTIONS: Record<string, { meaning: string; characte
 }
 
 // 四柱含义
-export const PILLAR_MEANINGS = {
+const PILLAR_MEANINGS = {
   year: {
     name: '年柱',
     meaning: '祖上、根基',
@@ -100,7 +100,7 @@ export const PILLAR_MEANINGS = {
 }
 
 // 十神详解
-export const TEN_GODS_DETAILED: Record<string, {
+const TEN_GODS_DETAILED: Record<string, {
   meaning: string;
   positive: string[];
   negative: string[];
@@ -197,13 +197,13 @@ export const TIME_MAP = [
 ]
 
 // 十神列表
-export const TEN_GODS_LIST = ['比肩', '劫财', '食神', '伤官', '偏财', '正财', '七杀', '正官', '偏印', '正印']
+const TEN_GODS_LIST = ['比肩', '劫财', '食神', '伤官', '偏财', '正财', '七杀', '正官', '偏印', '正印']
 
 // 五行列表
-export const WUXING_LIST = ['水', '木', '火', '土', '金']
+const WUXING_LIST = ['水', '木', '火', '土', '金']
 
 // 十二长生列表
-export const LIFE_STAGES_LIST = ['长生', '沐浴', '冠带', '临官', '帝旺', '衰', '病', '死', '墓', '绝', '胎', '养']
+const LIFE_STAGES_LIST = ['长生', '沐浴', '冠带', '临官', '帝旺', '衰', '病', '死', '墓', '绝', '胎', '养']
 
 // 五行强弱计算权重
 export const WUXING_STRENGTH_SCORES = {
@@ -230,7 +230,7 @@ export const WUXING_MONTH_WEIGHTS: Record<string, Record<string, number>> = {
 }
 
 // 五行生克关系 (用于判断同党/异党)
-export const WUXING_RELATIONSHIPS: Record<string, { allies: string[]; enemies: string[] }> = {
+const WUXING_RELATIONSHIPS: Record<string, { allies: string[]; enemies: string[] }> = {
   '金': { allies: ['金', '土'], enemies: ['火', '水', '木'] },
   '木': { allies: ['木', '水'], enemies: ['金', '火', '土'] },
   '水': { allies: ['水', '金'], enemies: ['土', '木', '火'] },
@@ -243,7 +243,7 @@ export const WUXING_RELATIONSHIPS: Record<string, { allies: string[]; enemies: s
  * @param shishen 十神名称
  * @returns 包含该十神详细信息的对象
  */
-export const getShishenInfo = (shishen: string) => {
+const getShishenInfo = (shishen: string) => {
   const shishenData = TEN_GODS_DETAILED[shishen]
   if (!shishenData) {
     return null

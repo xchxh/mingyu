@@ -4,11 +4,6 @@ import { BIRTH_TIME_OPTIONS } from './birth-time';
 
 export const UNKNOWN_TIME_INDEX = -1;
 
-export const UNKNOWN_TIME_OPTION = {
-  label: '未知时辰',
-  range: '待反推',
-} as const;
-
 export const REVERSE_BIRTH_TIME_SELECT_FIELDS = [
   {
     id: 'bodyBuild',
@@ -306,9 +301,9 @@ export const REVERSE_BIRTH_TIME_TEXT_FIELDS = [
   },
 ] as const;
 
-export type ReverseBirthTimeSelectFieldId =
+type ReverseBirthTimeSelectFieldId =
   (typeof REVERSE_BIRTH_TIME_SELECT_FIELDS)[number]['id'];
-export type ReverseBirthTimeTextFieldId =
+type ReverseBirthTimeTextFieldId =
   (typeof REVERSE_BIRTH_TIME_TEXT_FIELDS)[number]['id'];
 
 export type ReverseBirthTimeFormData = Record<ReverseBirthTimeSelectFieldId, string> &

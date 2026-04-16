@@ -15,7 +15,7 @@ export const TEN_GODS_DEFINITIONS: Record<string, { wuxing: string; yinyang: str
   '正印': { wuxing: '生我', yinyang: '异性', description: '代表母亲、正统学问，主仁慈、善良。' }
 }
 
-export const WUXING_SUGGESTIONS: Record<string, { color: string; direction: string; industry: string; number: string }> = {
+const WUXING_SUGGESTIONS: Record<string, { color: string; direction: string; industry: string; number: string }> = {
   '木': { color: '绿色', direction: '东方', industry: '木材、家具、文化、教育', number: '3, 8' },
   '火': { color: '红色、紫色', direction: '南方', industry: '电子、化工、餐饮、能源', number: '2, 7' },
   '土': { color: '黄色、棕色', direction: '中央、本地', industry: '地产、建筑、农业、矿产', number: '5, 0' },
@@ -23,7 +23,7 @@ export const WUXING_SUGGESTIONS: Record<string, { color: string; direction: stri
   '水': { color: '黑色、蓝色', direction: '北方', industry: '水利、运输、贸易、旅游', number: '1, 6' }
 }
 
-export const WUXING_COLORS: Record<string, string> = {
+const WUXING_COLORS: Record<string, string> = {
   '木': '#28a745',
   '火': '#dc3545',
   '土': '#816119',

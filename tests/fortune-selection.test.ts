@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { baziCalculator } from '../src/utils/bazi/baziCalculator';
+import { getMonthDaysInfo, getYearInfo } from '../src/utils/bazi/calendarTool';
 import {
   buildFortuneSelectionContext,
   normalizeFortuneSelection,
@@ -75,24 +77,43 @@ test('选择流年时会附带该流年下的全部流月', () => {
   assert.equal(context.monthBreakdown?.length, 12);
   assert.match(context.promptPayload.breakdownTitle ?? '', /流月/);
   assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /1月/);
+  assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /\d{4}-\d{2}-\d{2} 至 \d{4}-\d{2}-\d{2}/);
   assert.doesNotMatch(context.promptPayload.summaryLines.join('\n'), /童运/);
 });
 
-test('选择流月时会附带该流月下的全部流日', () => {
+test('节令月会使用实际交节日期范围，而不是直接套用公历月份', () => {
+  const yearInfo = getYearInfo(2024);
+  const firstMonth = yearInfo.months[0];
+  const firstMonthDays = getMonthDaysInfo(2024, 1);
+
+  assert.equal(firstMonth.month, '寅月');
+  assert.equal(firstMonth.ganZhi, '丙寅');
+  assert.equal(firstMonth.startDate, '2024-02-04');
+  assert.equal(firstMonth.endDate, '2024-03-05');
+  assert.equal(firstMonthDays[0]?.solarDate, '2024-02-04');
+  assert.equal(firstMonthDays.at(-1)?.solarDate, '2024-03-05');
+  assert.ok(firstMonth.startDateTime);
+  assert.ok(firstMonth.endDateTime);
+});
+
+test('选择流月时会附带该节令月下的全部流日', () => {
   const result = createMockResult();
   const context = buildFortuneSelectionContext(result, {
     scope: 'month',
     cycleIndex: 0,
     year: 2008,
-    month: 2,
+    month: 1,
   });
 
   assert.ok(context);
   assert.equal(context.scope, 'month');
-  assert.equal(context.month, 2);
-  assert.equal(context.dayBreakdown?.length, 29);
+  assert.equal(context.month, 1);
+  assert.match(context.displayText, /2008年 寅月/);
+  assert.match(context.promptPayload.summaryLines.join('\n'), /日期范围：2008-02-04 至 2008-03-05/);
+  assert.match(context.promptPayload.summaryLines.join('\n'), /交节时刻：立春/);
+  assert.equal(context.dayBreakdown?.length, 31);
   assert.match(context.promptPayload.breakdownTitle ?? '', /流日/);
-  assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /2008-02-01/);
+  assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /2008-02-04/);
 });
 
 test('选择流日时只保留该流日本身', () => {
@@ -101,8 +122,8 @@ test('选择流日时只保留该流日本身', () => {
     scope: 'day',
     cycleIndex: 0,
     year: 2008,
-    month: 2,
-    day: 8,
+    month: 1,
+    day: 5,
   });
   const context = buildFortuneSelectionContext(result, normalized);
 
@@ -110,7 +131,31 @@ test('选择流日时只保留该流日本身', () => {
   assert.equal(context.scope, 'day');
   assert.equal(context.promptPayload.breakdownTitle, '该流日包含的流时');
   assert.equal(context.dayBreakdown?.length, 1);
-  assert.equal(context.hourBreakdown?.length, 12);
+  assert.equal(context.hourBreakdown?.length, 13);
   assert.match(context.promptPayload.summaryLines.join('\n'), /流日：2008-02-08/);
-  assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /子时|丑时|寅时|卯时|辰时|巳时|午时|未时|申时|酉时|戌时|亥时/);
+  assert.match(context.promptPayload.summaryLines.join('\n'), /按子初换日：2008-02-07 23:00 至 2008-02-08 22:59/);
+  assert.match(context.promptPayload.breakdownLines?.[0] ?? '', /晚子时/);
+  assert.match(context.promptPayload.breakdownLines?.[1] ?? '', /早子时/);
+  assert.doesNotMatch(context.promptPayload.breakdownLines?.join('\n') ?? '', /2008-02-08 23:00-23:59/);
+});
+
+test('交运年份默认应归到后一步大运，而不是继续挂在童运或前一步运里', () => {
+  const result = baziCalculator.calculateBazi({
+    year: 1990,
+    month: 1,
+    day: 1,
+    timeIndex: 12,
+    gender: 'male',
+    isLunar: false,
+    isLeapMonth: false,
+    useTrueSolarTime: false,
+  });
+
+  const normalized = normalizeFortuneSelection(result, {
+    scope: 'year',
+    year: 1998,
+  });
+
+  assert.equal(normalized.cycleIndex, 1);
+  assert.equal(result.luckInfo.cycles[normalized.cycleIndex ?? -1]?.ganZhi, '乙亥');
 });

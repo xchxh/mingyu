@@ -9,7 +9,7 @@
  * @param day 日期
  * @returns 格式化后的日期字符串 (YYYY-MM-DD)
  */
-export function formatDate(year: string | number, month: string | number, day: string | number): string {
+function formatDate(year: string | number, month: string | number, day: string | number): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
@@ -18,7 +18,7 @@ export function formatDate(year: string | number, month: string | number, day: s
  * @param timeIndex 时间索引
  * @returns 格式化后的时间字符串
  */
-export function formatTime(timeIndex: number): string {
+function formatTime(timeIndex: number): string {
   const times = [
     '00:00-00:59 (子时)',
     '01:00-02:59 (丑时)',
@@ -38,7 +38,7 @@ export function formatTime(timeIndex: number): string {
   return times[timeIndex] || '未知时辰'
 }
 
-export function formatClockTime(hour?: number, minute?: number): string {
+function formatClockTime(hour?: number, minute?: number): string {
   if (typeof hour !== 'number' || typeof minute !== 'number') {
     return ''
   }
@@ -72,7 +72,7 @@ export function getTimeIndexFromClock(hour: number, minute = 0): number {
  * 获取当前时间戳
  * @returns ISO 格式的时间戳
  */
-export function getCurrentTimestamp(): string {
+function getCurrentTimestamp(): string {
   return new Date().toISOString()
 }
 
@@ -81,7 +81,7 @@ export function getCurrentTimestamp(): string {
  * @param birthYear 出生年份
  * @returns 年龄
  */
-export function calculateAge(birthYear: number): number {
+function calculateAge(birthYear: number): number {
   const currentYear = new Date().getFullYear()
   return currentYear - birthYear
 }
@@ -91,7 +91,7 @@ export function calculateAge(birthYear: number): number {
  * @param year 年份
  * @returns 是否为闰年
  */
-export function isLeapYear(year: number): boolean {
+function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 

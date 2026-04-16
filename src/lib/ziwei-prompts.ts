@@ -1,40 +1,16 @@
 import type { AnalysisPayloadV1, PalaceFact, ScopeType, StarFact } from '@/types/analysis';
-import type { AiAnalysisPayload, AiReportContext, ChatTurn } from '@/types/ai';
-import { isSynastryAnalysisPayload } from '@/types/synastry';
-import { buildSynastryAnalysisMessages } from './synastry-prompts';
-import { ZIWEI_ANALYSIS_REQUIREMENT, ZIWEI_ANALYST_ROLE } from './ziwei-prompt-copy';
 
-function stringify(value: unknown) {
-  return JSON.stringify(value, null, 2);
-}
-
-const markdownReportRules = [
-  '输出简体中文 Markdown 正文。',
-  '使用 `## 标题` 分段。',
-  '正文使用短段落或 `-` 列表。',
-].join('\n');
-
-function buildZiweiTaskText(reportContext: AiReportContext) {
-  const scopeLabel = reportContext.scope_label;
-  const topicLabel = mapTopicLabel(reportContext.selected_topic);
-
-  switch (reportContext.selected_topic) {
-    case 'relationship':
-      return `请围绕${scopeLabel}盘面，重点分析感情模式、关系推进、相处隐患与建议。`;
-    case 'career-wealth':
-      return `请围绕${scopeLabel}盘面，重点分析事业路径、财运抓手、风险点与建议。`;
-    case 'life':
-      return `请围绕${scopeLabel}盘面，概括人生主线、阶段重点与现实提醒。`;
-    case 'chat':
-      return `请围绕当前问题，结合${scopeLabel}盘面给出最相关的判断、依据与建议。`;
-    default:
-      return `请围绕${topicLabel}，结合${scopeLabel}盘面给出核心判断、关键依据与建议。`;
-  }
-}
-
-function buildZiweiOutputText() {
-  return '先给结论，再展开最关键的 2 到 4 个重点；每个重点都要写明盘面依据与建议。';
-}
+export type PromptContext = {
+  report_key: string;
+  report_title: string;
+  report_type: string;
+  selected_topic: string;
+  scope_type: ScopeType;
+  scope_label: string;
+  palace_name?: string;
+  focus_notes: string[];
+  suggested_questions: string[];
+};
 
 function formatScalarValue(value: unknown) {
   if (value === undefined || value === null || value === '') {
@@ -80,7 +56,7 @@ function formatObjectList(items: Array<Record<string, unknown>>) {
 
 function buildZiweiReadableSnapshot(params: {
   payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
+  reportContext: PromptContext;
 }) {
   const snapshot = buildPromptContextSnapshot(params);
 
@@ -133,7 +109,7 @@ function mapTopicLabel(selectedTopic: string) {
     case 'chat':
       return '自由聊天';
     default:
-      return 'AI 解读';
+      return '提示词解读';
   }
 }
 
@@ -258,7 +234,7 @@ function buildScopeFocusPalaces(payload: AnalysisPayloadV1) {
   ]).slice(0, 6);
 }
 
-function buildFocusTaskBundle(payload: AnalysisPayloadV1, reportContext: AiReportContext) {
+function buildFocusTaskBundle(payload: AnalysisPayloadV1, reportContext: PromptContext) {
   const activePalace = getPalaceByIndex(payload, payload.active_scope.palace_index);
   const bodyPalace = getBodyPalace(payload);
   const mingPalace = getPalaceByName(payload, '命宫');
@@ -467,7 +443,7 @@ function buildPalaceSummary(payload: AnalysisPayloadV1, palace: PalaceFact) {
 function buildEvidenceSummary(
   payload: AnalysisPayloadV1,
   focusPalaces: PalaceFact[],
-  reportContext: AiReportContext,
+  reportContext: PromptContext,
 ) {
   const focusIndexes = new Set(focusPalaces.map((item) => item.index));
   const focusNames = new Set(focusPalaces.map((item) => normalizePalaceName(item.name)));
@@ -516,9 +492,9 @@ function buildPalaceIndex(payload: AnalysisPayloadV1) {
   }));
 }
 
-export function buildPromptContextSnapshot(params: {
+function buildPromptContextSnapshot(params: {
   payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
+  reportContext: PromptContext;
 }) {
   const { payload, reportContext } = params;
   const focusTaskBundle = buildFocusTaskBundle(payload, reportContext);
@@ -569,7 +545,7 @@ export function buildPromptContextSnapshot(params: {
 
 export function buildPortablePromptPack(params: {
   payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
+  reportContext: PromptContext;
 }) {
   const { payload, reportContext } = params;
 
@@ -578,98 +554,3 @@ export function buildPortablePromptPack(params: {
   ].join('\n');
 }
 
-export function buildAnalysisSystemPrompt() {
-  return [
-    ZIWEI_ANALYST_ROLE,
-    ZIWEI_ANALYSIS_REQUIREMENT,
-    '若输入缺少直接证据，写“当前盘面未显示该项直接证据”。',
-    markdownReportRules,
-  ].join('\n');
-}
-
-export function buildAnalysisUserPrompt(params: {
-  payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
-}) {
-  const { payload, reportContext } = params;
-  const portablePromptPack = buildPortablePromptPack({
-    payload,
-    reportContext,
-  });
-
-  return [
-    `当前时间：${new Date().toLocaleString('zh-CN')}`,
-    portablePromptPack,
-    `问题：请围绕“${reportContext.report_title}”做分析。`,
-    `任务：${buildZiweiTaskText(reportContext)}`,
-    `输出：${buildZiweiOutputText()}`,
-  ].join('\n\n');
-}
-
-export function buildChatSystemPrompt() {
-  return [
-    ZIWEI_ANALYST_ROLE,
-    ZIWEI_ANALYSIS_REQUIREMENT,
-    '若输入缺少直接证据，写“当前盘面未显示该项直接证据”。',
-    markdownReportRules,
-  ].join('\n');
-}
-
-export function buildChatUserPrompt(params: {
-  payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
-  reportMarkdown: string;
-  history: ChatTurn[];
-  question: string;
-}) {
-  const { payload, reportContext, reportMarkdown, history, question } = params;
-  const portablePromptPack = buildPortablePromptPack({
-    payload,
-    reportContext,
-  });
-
-  return [
-    `当前时间：${new Date().toLocaleString('zh-CN')}`,
-    portablePromptPack,
-    `问题：${question}`,
-    '任务：先直接回答当前问题，再说明对应的盘面依据；若已有报告与当前问题相关，可延续其结论。',
-    '当前报告正文：',
-    reportMarkdown,
-    '最近对话：',
-    stringify(history),
-    `输出：${buildZiweiOutputText()}`,
-  ].join('\n');
-}
-
-export function buildAnalysisMessages(params: {
-  payload: AiAnalysisPayload;
-  reportContext: AiReportContext;
-}) {
-  if (isSynastryAnalysisPayload(params.payload)) {
-    return buildSynastryAnalysisMessages();
-  }
-
-  return [
-    { role: 'system', content: buildAnalysisSystemPrompt() },
-    {
-      role: 'user',
-      content: buildAnalysisUserPrompt({
-        payload: params.payload,
-        reportContext: params.reportContext,
-      }),
-    },
-  ] as const;
-}
-
-export function buildChatMessages(params: {
-  payload: AnalysisPayloadV1;
-  reportContext: AiReportContext;
-  reportMarkdown: string;
-  history: ChatTurn[];
-  question: string;
-}) {
-  return [
-    { role: 'system', content: buildChatSystemPrompt() },
-    { role: 'user', content: buildChatUserPrompt(params) },
-  ] as const;
-}

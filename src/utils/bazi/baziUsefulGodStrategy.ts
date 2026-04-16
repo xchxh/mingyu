@@ -3,6 +3,7 @@ import type { PatternAnalysis, UsefulGodAnalysis } from './baziTypes'
 import {
   applyClimateAdjustment,
   applyTherapeuticPriority,
+  resolveClimateFavorableOrder,
   resolveClimateUsefulWuxing,
   resolveTherapeuticHint,
   resolveTherapeuticHintRuleId,
@@ -12,9 +13,41 @@ import {
   BASE_USEFUL_GOD_RULES,
   type UsefulGodWuxingBundle
 } from './baziUsefulGodRules'
-import { matchFirstRule } from './baziRuleMatcher'
-import { CLIMATE_RULES, THERAPEUTIC_PRIORITY_RULES } from './baziTherapeuticRules'
-import { resolveRuleMetadataList } from './baziRuleCatalog'
+import { matchFirstRule, type HiddenStemSource, type VisibleStemSource } from './baziRuleMatcher'
+import { CLIMATE_RULES, STRENGTH_HINT_RULES, THERAPEUTIC_PRIORITY_RULES } from './baziTherapeuticRules'
+// ---- 规则元数据目录（从 baziRuleCatalog 合并） ----
+
+interface RuleMetadata {
+  id: string;
+  label: string;
+  description: string;
+}
+
+const RULE_CATALOG = [
+  ...BASE_USEFUL_GOD_RULES,
+  ...CLIMATE_RULES,
+  ...STRENGTH_HINT_RULES,
+  ...THERAPEUTIC_PRIORITY_RULES
+].reduce<Record<string, RuleMetadata>>((catalog, rule) => {
+  catalog[rule.id] = {
+    id: rule.id,
+    label: rule.label,
+    description: rule.description
+  }
+  return catalog
+}, {})
+
+function resolveRuleMetadata(ruleId: string): RuleMetadata | null {
+  return RULE_CATALOG[ruleId] || null
+}
+
+function resolveRuleMetadataList(ruleIds: string[]): RuleMetadata[] {
+  return ruleIds
+    .map(ruleId => resolveRuleMetadata(ruleId))
+    .filter((rule): rule is RuleMetadata => Boolean(rule))
+}
+
+// ---- 用神决策逻辑 ----
 
 interface UsefulGodDecisionState {
   favorableWuxing: string[];
@@ -22,6 +55,18 @@ interface UsefulGodDecisionState {
   trace: string[];
   primaryReason: string;
   matchedRuleIds: string[];
+}
+
+interface UsefulGodClimateContext {
+  yearStem?: string;
+  hourBranch?: string;
+  currentJieqi?: string;
+  visibleStems?: string[];
+  visibleStemSources?: VisibleStemSource[];
+  hiddenStems?: string[];
+  hiddenStemSources?: HiddenStemSource[];
+  formationWuxings?: string[];
+  wuxingCounts?: Record<string, number>;
 }
 
 function resolveBaseUsefulGodRule(
@@ -147,6 +192,33 @@ function buildWuxingToTenGodMap(dmWuxing: string): Record<string, string[]> {
   }
 }
 
+function resolveTenGodCategoryLabel(dmWuxing: string, targetWuxing: string): string {
+  const sheng = BASIC_MAPPINGS.WUXING_SHENG
+  const ke = BASIC_MAPPINGS.WUXING_KE
+  const generated = sheng[dmWuxing]
+  const wealth = ke[dmWuxing]
+  const officer = Object.keys(ke).find(key => ke[key] === dmWuxing) || ''
+  const resource = Object.keys(sheng).find(key => sheng[key] === dmWuxing) || ''
+
+  if (targetWuxing === dmWuxing) {
+    return '比劫'
+  }
+  if (targetWuxing === generated) {
+    return '食伤'
+  }
+  if (targetWuxing === wealth) {
+    return '财星'
+  }
+  if (targetWuxing === officer) {
+    return '官杀'
+  }
+  if (targetWuxing === resource) {
+    return '印星'
+  }
+
+  return '待定'
+}
+
 function finalizeUsefulGodAnalysis(
   state: UsefulGodDecisionState,
   dmWuxing: string
@@ -158,17 +230,45 @@ function finalizeUsefulGodAnalysis(
 } {
   const wuxingToTenGodMap = buildWuxingToTenGodMap(dmWuxing)
 
+  const primaryFavorableWuxing = state.favorableWuxing[0] || ''
+  const secondaryFavorableWuxing = state.favorableWuxing.slice(1)
+  const primaryUnfavorableWuxing = state.unfavorableWuxing[0] || ''
+  const secondaryUnfavorableWuxing = state.unfavorableWuxing.slice(1)
+
   const favorableGods = state.favorableWuxing.flatMap(wx => wuxingToTenGodMap[wx] || [])
   const unfavorableGods = state.unfavorableWuxing.flatMap(wx => wuxingToTenGodMap[wx] || [])
-  const usefulGod = favorableGods[0]
+  const primaryFavorableGods = primaryFavorableWuxing
+    ? wuxingToTenGodMap[primaryFavorableWuxing] || []
+    : []
+  const secondaryFavorableGods = secondaryFavorableWuxing.flatMap(wx => wuxingToTenGodMap[wx] || [])
+  const primaryUnfavorableGods = primaryUnfavorableWuxing
+    ? wuxingToTenGodMap[primaryUnfavorableWuxing] || []
+    : []
+  const secondaryUnfavorableGods = secondaryUnfavorableWuxing.flatMap(wx => wuxingToTenGodMap[wx] || [])
+  const usefulGod = primaryFavorableWuxing
+    ? resolveTenGodCategoryLabel(dmWuxing, primaryFavorableWuxing)
+    : '暂无'
+  const avoidGod = primaryUnfavorableWuxing
+    ? resolveTenGodCategoryLabel(dmWuxing, primaryUnfavorableWuxing)
+    : '暂无'
 
   return {
     favorable: favorableGods,
     unfavorable: unfavorableGods,
-    useful: usefulGod || '暂无',
-    avoid: unfavorableGods[0] || '暂无',
+    primaryFavorable: primaryFavorableGods,
+    secondaryFavorable: secondaryFavorableGods,
+    primaryUnfavorable: primaryUnfavorableGods,
+    secondaryUnfavorable: secondaryUnfavorableGods,
+    useful: usefulGod,
+    avoid: avoidGod,
     favorableWuxing: state.favorableWuxing,
     unfavorableWuxing: state.unfavorableWuxing,
+    primaryFavorableWuxing,
+    secondaryFavorableWuxing,
+    primaryUnfavorableWuxing,
+    secondaryUnfavorableWuxing,
+    primaryUseful: usefulGod,
+    primaryAvoid: avoidGod,
     strategyTrace: state.trace,
     primaryReason: state.primaryReason,
     matchedRules: resolveRuleMetadataList(state.matchedRuleIds)
@@ -180,7 +280,9 @@ export function determineUsefulGod(
   pattern: PatternAnalysis,
   dmWuxing: string,
   monthBranch?: string,
-  monthCommander?: string
+  monthCommander?: string,
+  dayMasterStem?: string,
+  climateContext?: UsefulGodClimateContext
 ): UsefulGodAnalysis & {
   favorableWuxing: string[];
   unfavorableWuxing: string[];
@@ -189,14 +291,37 @@ export function determineUsefulGod(
 } {
   const isPatternSpecial = pattern.isSpecial
   const baseState = buildBaseDecisionState(strengthStatus, pattern, dmWuxing)
+  const yearStem = climateContext?.yearStem
+  const hourBranch = climateContext?.hourBranch
+  const currentJieqi = climateContext?.currentJieqi
+  const visibleStems = climateContext?.visibleStems
+  const visibleStemSources = climateContext?.visibleStemSources
+  const hiddenStems = climateContext?.hiddenStems
+  const hiddenStemSources = climateContext?.hiddenStemSources
+  const formationWuxings = climateContext?.formationWuxings
+  const wuxingCounts = climateContext?.wuxingCounts
   const climateRule = matchFirstRule(CLIMATE_RULES, {
+    yearStem,
     monthBranch,
-    dayMaster: dmWuxing
+    hourBranch,
+    dayMaster: dmWuxing,
+    dayStem: dayMasterStem,
+    currentJieqi,
+    visibleStems,
+    visibleStemSources,
+    hiddenStems,
+    hiddenStemSources,
+    formationWuxings,
+    wuxingCounts
   })
-  const climateUsefulWuxing = resolveClimateUsefulWuxing(dmWuxing, monthBranch, isPatternSpecial)
-  const climateDecision = applyClimateAdjustment(baseState, climateUsefulWuxing)
+  const climateFavorableOrder = resolveClimateFavorableOrder(dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, isPatternSpecial, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)
+  const climateUsefulWuxing = climateFavorableOrder[0] || resolveClimateUsefulWuxing(dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, isPatternSpecial, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)
+  const climateDecision = applyClimateAdjustment(baseState, climateFavorableOrder)
   if (climateDecision.adjusted && climateRule?.id && !climateDecision.state.matchedRuleIds.includes(climateRule.id)) {
     climateDecision.state.matchedRuleIds.push(climateRule.id)
+  }
+  if (climateDecision.adjusted && climateRule?.traceHints?.length) {
+    climateDecision.state.trace.push(...climateRule.traceHints)
   }
 
   const commanderWuxing = resolveCommanderWuxing(monthCommander, isPatternSpecial)
@@ -211,11 +336,13 @@ export function determineUsefulGod(
     ? undefined
     : matchFirstRule(THERAPEUTIC_PRIORITY_RULES, {
       monthBranch,
-      strengthStatus
+      strengthStatus,
+      dayMaster: dmWuxing,
+      dayStem: dayMasterStem
     })
   const therapeuticPriorityWuxing = climateDecision.adjusted
     ? ''
-    : resolveTherapeuticPriorityWuxing(strengthStatus, dmWuxing, monthBranch, isPatternSpecial, BASIC_MAPPINGS.WUXING_SHENG)
+    : resolveTherapeuticPriorityWuxing(strengthStatus, dmWuxing, dayMasterStem, monthBranch, isPatternSpecial, BASIC_MAPPINGS.WUXING_SHENG)
   const therapeuticDecision = applyTherapeuticPriority(
     commanderDecision.state,
     therapeuticPriorityWuxing
@@ -224,8 +351,8 @@ export function determineUsefulGod(
     therapeuticDecision.state.matchedRuleIds.push(therapeuticRule.id)
   }
 
-  const therapeuticHint = resolveTherapeuticHint(strengthStatus, dmWuxing, monthBranch)
-  const therapeuticHintRuleId = resolveTherapeuticHintRuleId(strengthStatus, dmWuxing, monthBranch)
+  const therapeuticHint = resolveTherapeuticHint(strengthStatus, dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)
+  const therapeuticHintRuleId = resolveTherapeuticHintRuleId(strengthStatus, dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)
   if (therapeuticHintRuleId && !therapeuticDecision.state.matchedRuleIds.includes(therapeuticHintRuleId)) {
     therapeuticDecision.state.matchedRuleIds.push(therapeuticHintRuleId)
   }

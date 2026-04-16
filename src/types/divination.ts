@@ -323,6 +323,8 @@ export interface LiurenData {
   patternTags?: string[];
   lessonSummary?: string;
   transmissionSummary?: string;
+  guaTi?: string[];
+  shenShaSummary?: string[];
 }
 
 export interface TarotData {

@@ -1,5 +1,3 @@
-import type { ScopeType } from './analysis';
-
 export type ChartInput = {
   name: string;
   dateType: 'solar' | 'lunar';
@@ -14,15 +12,4 @@ export type ChartInput = {
   horoscopeDivide?: 'normal' | 'exact';
   ageDivide?: 'normal' | 'birthday';
   dayDivide?: 'current' | 'forward';
-};
-
-export type ChartPersistRecord = {
-  id: string;
-  chartHash: string;
-  input: ChartInput;
-  currentScope: ScopeType;
-  currentHoroscopeDate: string;
-  currentHoroscopeHour: number;
-  createdAt: number;
-  updatedAt: number;
 };

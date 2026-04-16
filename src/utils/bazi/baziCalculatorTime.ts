@@ -6,7 +6,7 @@ import type { BaziChartResult, SeasonInfo, ShenShaResult } from './baziTypes'
 type SolarTermInstance = ReturnType<typeof SolarTerm.fromIndex>
 type SolarTimeInstance = ReturnType<typeof SolarTime.fromYmdHms>
 
-export interface LiuyueInfo {
+interface LiuyueInfo {
   month: number;
   gan: string;
   zhi: string;
@@ -15,10 +15,14 @@ export interface LiuyueInfo {
   tenGodZhi: string;
   startDate: string;
   endDate: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  startTermName?: string;
+  endTermName?: string;
   jieqi: { name: string; date: string }[];
 }
 
-export interface LiuriInfo {
+interface LiuriInfo {
   date: string;
   year: number;
   month: number;
@@ -34,23 +38,13 @@ function createUtcDate(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day))
 }
 
-function formatUtcDate(date: Date): string {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+function formatLocalDateTime(time: SolarTimeInstance): string {
+  return `${time.getYear()}-${String(time.getMonth()).padStart(2, '0')}-${String(time.getDay()).padStart(2, '0')} ${String(time.getHour()).padStart(2, '0')}:${String(time.getMinute()).padStart(2, '0')}`
 }
 
 function parseDateKey(dateKey: string): { year: number; month: number; day: number } {
   const [year, month, day] = dateKey.split('-').map(Number)
   return { year, month, day }
-}
-
-function subtractOneDay(dateKey: string): string {
-  const { year, month, day } = parseDateKey(dateKey)
-  const date = createUtcDate(year, month, day)
-  date.setUTCDate(date.getUTCDate() - 1)
-  return formatUtcDate(date)
 }
 
 function getNextMonth(year: number, month: number): { year: number; month: number } {
@@ -103,7 +97,7 @@ export function calculateLiuyue(year: number, month: number, dayMaster: string):
   const zhi = monthColumn.getEarthBranch().getName()
   const startDate = firstJie?.date ?? `${year}-${String(month).padStart(2, '0')}-01`
   const endDate = nextJie
-    ? subtractOneDay(nextJie.date)
+    ? nextJie.date
     : `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate().toString().padStart(2, '0')}`
 
   return {
@@ -115,6 +109,10 @@ export function calculateLiuyue(year: number, month: number, dayMaster: string):
     tenGodZhi: getTenGodForBranch(zhi, dayMaster),
     startDate,
     endDate,
+    startDateTime: firstJie ? formatLocalDateTime(firstJie.solarTime) : undefined,
+    endDateTime: nextJie ? formatLocalDateTime(nextJie.solarTime) : undefined,
+    startTermName: firstJie?.term.getName(),
+    endTermName: nextJie?.term.getName(),
     jieqi: solarTermsInMonth.map(({ term, date }) => ({
       name: term.getName(),
       date
@@ -123,7 +121,7 @@ export function calculateLiuyue(year: number, month: number, dayMaster: string):
 }
 
 export function calculateLiuri(year: number, month: number, day: number, dayMaster: string): LiuriInfo {
-  const solarTime = SolarTime.fromYmdHms(year, month, day, 0, 0, 0)
+  const solarTime = SolarTime.fromYmdHms(year, month, day, 12, 0, 0)
   const dayPillar = solarTime.getLunarHour().getEightChar().getDay()
   const gan = dayPillar.getHeavenStem().getName()
   const zhi = dayPillar.getEarthBranch().getName()

@@ -213,6 +213,38 @@ test('占卜提示词的输出要求保持统一且精简', async () => {
   assert.doesNotMatch(session, /语气和表达要求/);
 });
 
+test('奇门提示词会结合问题补充取用参考与优先宫位', () => {
+  const prompt = buildDivinationPrompt(
+    'qimen',
+    '这次换工作该不该主动推进？',
+    createData('qimen'),
+    {
+      gender: '男',
+      birthYear: 1995,
+    },
+  );
+
+  assert.match(prompt, /问事参考：/);
+  assert.match(prompt, /优先看宫：/);
+  assert.match(prompt, /值符值使/);
+  assert.match(prompt, /起局抓手：/);
+});
+
+test('六爻提示词会给出断卦抓手，先看用神世应动变', () => {
+  const prompt = buildDivinationPrompt(
+    'liuyao',
+    '这件事接下来该怎么推进？',
+    createData('liuyao'),
+    createSupplementaryInfo(),
+  );
+
+  assert.match(prompt, /断卦抓手：/);
+  assert.match(prompt, /世爻/);
+  assert.match(prompt, /应爻/);
+  assert.match(prompt, /动爻/);
+  assert.match(prompt, /空亡/);
+});
+
 test('大六壬提示词会带可选断课模板', () => {
   const prompt = buildDivinationPrompt(
     'liuren',
@@ -229,4 +261,38 @@ test('大六壬提示词会带可选断课模板', () => {
   assert.match(prompt, /过程判断：/);
   assert.match(prompt, /结果判断：/);
   assert.match(prompt, /行动建议：/);
+});
+
+test('大六壬提示词会给出断课抓手，先提示发用主线再断事', () => {
+  const prompt = buildDivinationPrompt(
+    'liuren',
+    '这件事接下来该怎么推进？',
+    createData('liuren'),
+    createSupplementaryInfo(),
+  );
+
+  assert.match(prompt, /断课抓手：/);
+  assert.match(prompt, /发用/);
+  assert.match(prompt, /传态/);
+  assert.match(prompt, /旬空/);
+  assert.match(prompt, /主线证据：/);
+  assert.match(prompt, /主辅分层：/);
+});
+
+test('大六壬提示词会吸收课体与神煞补充信息', () => {
+  const data = {
+    ...createData('liuren'),
+    guaTi: ['龙德卦', '连珠卦'],
+    shenShaSummary: ['旬奇临初传', '天马并发', '末传逢月德'],
+  } satisfies LiurenData;
+
+  const prompt = buildDivinationPrompt(
+    'liuren',
+    '这件事接下来该怎么推进？',
+    data,
+    createSupplementaryInfo(),
+  );
+
+  assert.match(prompt, /课体补充：龙德卦、连珠卦/);
+  assert.match(prompt, /神煞补充：旬奇临初传；天马并发；末传逢月德/);
 });

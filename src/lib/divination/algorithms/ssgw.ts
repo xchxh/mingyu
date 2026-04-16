@@ -40,7 +40,7 @@ export function drawRandomSign(): SsgwData {
 /**
  * 根据签号获取签文
  */
-export function getSignByNumber(signNumber: number): SsgwData {
+function getSignByNumber(signNumber: number): SsgwData {
   validateSignNumber(signNumber);
   const { ganzhi, timestamp } = getDivinationTime();
   
@@ -60,13 +60,13 @@ export function getSignByNumber(signNumber: number): SsgwData {
 /**
  * 获取所有签文的列表（用于展示）
  */
-export function getAllSigns(): Omit<SsgwData, 'ganzhi' | 'timestamp'>[] {
+function getAllSigns(): Omit<SsgwData, 'ganzhi' | 'timestamp'>[] {
   return [...ssgwSigns];
 }
 
 /**
  * 获取签文总数
  */
-export function getSignsCount(): number {
+function getSignsCount(): number {
   return ssgwSigns.length;
 }

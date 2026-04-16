@@ -46,9 +46,7 @@ export function getManualChunk(id: string) {
 
   if (
     id.includes('src/utils/bazi') ||
-    id.includes('src/utils/dateUtils.ts') ||
-    id.includes('src/lib/templates.ts') ||
-    id.includes('src/lib/synastry-prompts.ts')
+    id.includes('src/utils/dateUtils.ts')
   ) {
     return 'bazi-engine';
   }

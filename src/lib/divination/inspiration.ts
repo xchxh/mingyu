@@ -1,6 +1,6 @@
 import type { DivinationDraft } from './engine';
 
-export type DivinationInspirationTabId =
+type DivinationInspirationTabId =
   | 'spread'
   | 'ganqing'
   | 'shiye'

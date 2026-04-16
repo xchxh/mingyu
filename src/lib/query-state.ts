@@ -49,6 +49,7 @@ export type QueryPromptState = {
   ziweiShortcutMode: string;
   ziweiQuickQuestion: string;
   ziweiScope: ZiweiScopeMode;
+  ziweiScopeDate: string;
 };
 
 export const UNKNOWN_TIME_INDEX = -1;
@@ -98,6 +99,7 @@ export const defaultPromptState: QueryPromptState = {
   ziweiShortcutMode: '自定义',
   ziweiQuickQuestion: '',
   ziweiScope: 'origin',
+  ziweiScopeDate: '',
 };
 
 function appendInputStateParams(params: URLSearchParams, input: QueryInputState) {
@@ -143,6 +145,7 @@ function appendPromptStateParams(params: URLSearchParams, prompt: QueryPromptSta
   params.set('ziweiTopic', prompt.ziweiTopic);
   params.set('ziweiShortcutMode', prompt.ziweiShortcutMode);
   params.set('ziweiScope', prompt.ziweiScope);
+  params.set('ziweiScopeDate', prompt.ziweiScopeDate);
 }
 
 function getString(params: URLSearchParams, key: string, fallback: string) {
@@ -156,10 +159,6 @@ function parseTimeIndex(value: string) {
 
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= UNKNOWN_TIME_INDEX ? parsed : '';
-}
-
-export function buildBirthDate(year: string, month: string, day: string) {
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
 export function parseInputState(params: URLSearchParams): QueryInputState {
@@ -219,15 +218,6 @@ export function buildInputSearch(params: URLSearchParams) {
 }
 
 export function parsePromptState(params: URLSearchParams): QueryPromptState {
-  const legacyYearMode = getString(params, 'baziYearMode', '');
-  const legacySelectedYear = getString(params, 'baziSelectedYear', '');
-  const legacyFortuneScope =
-    legacyYearMode === 'current-luck'
-      ? 'dayun'
-      : legacyYearMode === 'yearly' && legacySelectedYear
-        ? 'year'
-        : 'natal';
-
   return {
     tab: (getString(params, 'tab', defaultPromptState.tab) as ResultTabKey) || defaultPromptState.tab,
     promptSource:
@@ -244,14 +234,14 @@ export function parsePromptState(params: URLSearchParams): QueryPromptState {
     baziFortuneScope: getString(
       params,
       'baziFortuneScope',
-      legacyFortuneScope || defaultPromptState.baziFortuneScope,
+      defaultPromptState.baziFortuneScope,
     ) as BaziFortuneScope,
     baziFortuneCycleIndex: getString(
       params,
       'baziFortuneCycleIndex',
       defaultPromptState.baziFortuneCycleIndex,
     ),
-    baziFortuneYear: getString(params, 'baziFortuneYear', legacySelectedYear),
+    baziFortuneYear: getString(params, 'baziFortuneYear', defaultPromptState.baziFortuneYear),
     baziFortuneMonth: getString(
       params,
       'baziFortuneMonth',
@@ -266,6 +256,7 @@ export function parsePromptState(params: URLSearchParams): QueryPromptState {
     ),
     ziweiQuickQuestion: getString(params, 'ziweiQuickQuestion', defaultPromptState.ziweiQuickQuestion),
     ziweiScope: (getString(params, 'ziweiScope', defaultPromptState.ziweiScope) as ZiweiScopeMode),
+    ziweiScopeDate: getString(params, 'ziweiScopeDate', defaultPromptState.ziweiScopeDate),
   };
 }
 

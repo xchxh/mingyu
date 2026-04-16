@@ -107,6 +107,7 @@ export interface LuckCycle {
   startSolarTime?: SolarDateTimeInfo;
   endSolarTime?: SolarDateTimeInfo;
   years: LiunianInfo[];
+  resolvedYears?: LiunianInfo[];
 }
 
 export interface LuckInfo {
@@ -173,19 +174,29 @@ export interface SupportAnalysis {
   hasSupport: boolean;
 }
 
+export interface ConstraintAnalysis {
+  constraints: { position: string; stem: string; strength: number }[];
+  totalStrength: number;
+  hasConstraint: boolean;
+}
+
 export interface DayMasterStrengthAnalysis {
   score: number;
   status: string;
   details: {
+    seasonalScore: number;
     timely: boolean;
+    formationStrength: number;
     rootStrength: number;
     supportStrength: number;
+    constraintStrength: number;
   };
 }
 
 export interface PatternAnalysis {
   pattern: string;
   isSpecial: boolean;
+  basis?: string;
 }
 
 export interface UsefulGodAnalysis {
@@ -193,8 +204,18 @@ export interface UsefulGodAnalysis {
   unfavorable: string[];
   useful: string;
   avoid: string;
+  primaryFavorable?: string[];
+  secondaryFavorable?: string[];
+  primaryUnfavorable?: string[];
+  secondaryUnfavorable?: string[];
   favorableWuxing?: string[];
   unfavorableWuxing?: string[];
+  primaryFavorableWuxing?: string;
+  secondaryFavorableWuxing?: string[];
+  primaryUnfavorableWuxing?: string;
+  secondaryUnfavorableWuxing?: string[];
+  primaryUseful?: string;
+  primaryAvoid?: string;
   strategyTrace?: string[];
   primaryReason?: string;
   matchedRules?: {
@@ -222,7 +243,7 @@ interface EightCharPillarLike extends NamedValue {
   getEarthBranch(): NamedValue;
 }
 
-export interface InternalEightChar {
+interface InternalEightChar {
   getYear(): EightCharPillarLike;
   getMonth(): EightCharPillarLike;
   getDay(): EightCharPillarLike;

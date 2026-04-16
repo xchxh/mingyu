@@ -1,8 +1,13 @@
 import { SolarTime } from 'tyme4ts';
-import { getMonthDaysInfo, getYearInfo } from './calendarTool';
+import {
+  getBaziDayIndexByDate,
+  getBaziMonthIndexByDate,
+  getMonthDaysInfo,
+  getYearInfo,
+} from './calendarTool';
 import type { BaziChartResult, LiunianInfo, LuckCycle } from './baziTypes';
 
-export interface FortunePromptPayload {
+interface FortunePromptPayload {
   scopeLabel: string;
   summaryLines: string[];
   breakdownTitle?: string;
@@ -39,15 +44,23 @@ export interface FortuneSelectionContext {
     ganZhi: string;
     startDate: string;
     endDate: string;
+    startDateTime?: string;
+    endDateTime?: string;
+    startTermName?: string;
+    endTermName?: string;
   }>;
   dayBreakdown?: Array<{
     date: string;
     label: string;
     ganZhi: string;
+    startDateTime?: string;
+    endDateTime?: string;
+    boundaryNote?: string;
   }>;
   hourBreakdown?: Array<{
     label: string;
     ganZhi: string;
+    timeRange?: string;
   }>;
   displayLabel: string;
   displayText: string;
@@ -62,25 +75,46 @@ export interface BaziFortuneSelectionValue {
   day?: number;
 }
 
-function formatDate(value: number) {
-  return String(value).padStart(2, '0');
-}
-
-function formatSolarDate(year: number, month: number, day: number) {
-  return `${year}-${formatDate(month)}-${formatDate(day)}`;
-}
-
 function getDayHourBreakdown(year: number, month: number, day: number) {
-  const hourMarks = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22];
+  const previousDate = new Date(year, month - 1, day - 1);
+  const entries = [
+    {
+      year: previousDate.getFullYear(),
+      month: previousDate.getMonth() + 1,
+      day: previousDate.getDate(),
+      hour: 23,
+      label: '晚子时',
+      timeRange: `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${String(previousDate.getDate()).padStart(2, '0')} 23:00-23:59`,
+    },
+    {
+      year,
+      month,
+      day,
+      hour: 0,
+      label: '早子时',
+      timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00-00:59`,
+    },
+    { year, month, day, hour: 2, label: '丑时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 01:00-02:59` },
+    { year, month, day, hour: 4, label: '寅时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 03:00-04:59` },
+    { year, month, day, hour: 6, label: '卯时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 05:00-06:59` },
+    { year, month, day, hour: 8, label: '辰时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 07:00-08:59` },
+    { year, month, day, hour: 10, label: '巳时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 09:00-10:59` },
+    { year, month, day, hour: 12, label: '午时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 11:00-12:59` },
+    { year, month, day, hour: 14, label: '未时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 13:00-14:59` },
+    { year, month, day, hour: 16, label: '申时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 15:00-16:59` },
+    { year, month, day, hour: 18, label: '酉时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 17:00-18:59` },
+    { year, month, day, hour: 20, label: '戌时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 19:00-20:59` },
+    { year, month, day, hour: 22, label: '亥时', timeRange: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 21:00-22:59` },
+  ];
 
-  return hourMarks.map((hour) => {
-    const solarTime = SolarTime.fromYmdHms(year, month, day, hour, 0, 0);
+  return entries.map((entry) => {
+    const solarTime = SolarTime.fromYmdHms(entry.year, entry.month, entry.day, entry.hour, 0, 0);
     const hourPillar = solarTime.getLunarHour().getEightChar().getHour();
-    const hourBranch = hourPillar.getEarthBranch().getName();
 
     return {
-      label: `${hourBranch}时`,
+      label: entry.label,
       ganZhi: hourPillar.getName(),
+      timeRange: entry.timeRange,
     };
   });
 }
@@ -109,18 +143,26 @@ function resolveCycleIndex(result: BaziChartResult, selection: BaziFortuneSelect
   }
 
   if (typeof selection.year === 'number') {
-    const matchedIndex = result.luckInfo.cycles.findIndex((cycle) =>
-      cycle.years.some((item) => item.year === selection.year),
-    );
+    let matchedIndex = -1;
+    for (let i = result.luckInfo.cycles.length - 1; i >= 0; i -= 1) {
+      if (result.luckInfo.cycles[i].years.some((item) => item.year === selection.year)) {
+        matchedIndex = i;
+        break;
+      }
+    }
     if (matchedIndex >= 0) {
       return matchedIndex;
     }
   }
 
   const currentYear = new Date().getFullYear();
-  const currentCycleIndex = result.luckInfo.cycles.findIndex((cycle) =>
-    cycle.years.some((item) => item.year === currentYear),
-  );
+  let currentCycleIndex = -1;
+  for (let i = result.luckInfo.cycles.length - 1; i >= 0; i -= 1) {
+    if (result.luckInfo.cycles[i].years.some((item) => item.year === currentYear)) {
+      currentCycleIndex = i;
+      break;
+    }
+  }
   return currentCycleIndex >= 0 ? currentCycleIndex : 0;
 }
 
@@ -140,11 +182,18 @@ function resolveSelectedYear(cycle: LuckCycle | undefined, selection: BaziFortun
 }
 
 function resolveSelectedMonth(selection: BaziFortuneSelectionValue) {
-  if (typeof selection.month === 'number' && selection.month >= 1 && selection.month <= 12) {
+  if (typeof selection.year !== 'number') return undefined;
+
+  const monthOptions = getYearInfo(selection.year).months;
+  if (
+    typeof selection.month === 'number' &&
+    selection.month >= 1 &&
+    selection.month <= monthOptions.length
+  ) {
     return selection.month;
   }
 
-  return new Date().getMonth() + 1;
+  return getBaziMonthIndexByDate(selection.year, new Date()) ?? 1;
 }
 
 function resolveSelectedDay(
@@ -153,13 +202,17 @@ function resolveSelectedDay(
   selection: BaziFortuneSelectionValue,
 ) {
   if (!year || !month) return undefined;
-  const maxDay = new Date(year, month, 0).getDate();
+  const dayOptions = getMonthDaysInfo(year, month);
 
-  if (typeof selection.day === 'number' && selection.day >= 1 && selection.day <= maxDay) {
+  if (
+    typeof selection.day === 'number' &&
+    selection.day >= 1 &&
+    selection.day <= dayOptions.length
+  ) {
     return selection.day;
   }
 
-  return Math.min(new Date().getDate(), maxDay);
+  return getBaziDayIndexByDate(year, month, new Date()) ?? 1;
 }
 
 export function normalizeFortuneSelection(
@@ -299,8 +352,12 @@ export function buildFortuneSelectionContext(
       month: index + 1,
       label: item.month,
       ganZhi: item.ganZhi,
-      startDate: '',
-      endDate: '',
+      startDate: item.startDate,
+      endDate: item.endDate,
+      startDateTime: item.startDateTime,
+      endDateTime: item.endDateTime,
+      startTermName: item.startTermName,
+      endTermName: item.endTermName,
     }));
 
     return {
@@ -317,7 +374,9 @@ export function buildFortuneSelectionContext(
           `对应年龄：${yearItem.age}岁`,
         ].filter(Boolean) as string[],
         breakdownTitle: '该流年包含的流月',
-        breakdownLines: breakdown.map((item) => `${item.month}月（${item.label}） ${item.ganZhi}`),
+        breakdownLines: breakdown.map((item) => (
+          `${item.month}月（${item.label}） ${item.ganZhi}｜日期范围 ${item.startDate} 至 ${item.endDate}｜交节 ${item.startTermName || ''} ${item.startDateTime || ''} 起，${item.endTermName || ''} ${item.endDateTime || ''} 交下节`
+        )),
       },
     };
   }
@@ -328,9 +387,12 @@ export function buildFortuneSelectionContext(
 
   if (normalized.scope === 'month') {
     const breakdown = dayInfoList.map((item) => ({
-      date: formatSolarDate(yearItem.year, normalized.month!, item.day),
-      label: `${item.day}日`,
+      date: item.solarDate,
+      label: item.solarLabel,
       ganZhi: item.ganZhi,
+      startDateTime: item.startDateTime,
+      endDateTime: item.endDateTime,
+      boundaryNote: item.boundaryNote,
     }));
 
     return {
@@ -344,22 +406,28 @@ export function buildFortuneSelectionContext(
           month: normalized.month,
           label: monthInfo.month,
           ganZhi: monthInfo.ganZhi,
-          startDate: '',
-          endDate: '',
+          startDate: monthInfo.startDate,
+          endDate: monthInfo.endDate,
+          startDateTime: monthInfo.startDateTime,
+          endDateTime: monthInfo.endDateTime,
+          startTermName: monthInfo.startTermName,
+          endTermName: monthInfo.endTermName,
         },
       ],
       dayBreakdown: breakdown,
-      displayLabel: `${yearItem.year}年${normalized.month}月`,
-      displayText: `${yearItem.year}年 ${normalized.month}月（${monthInfo.month} ${monthInfo.ganZhi}）`,
+      displayLabel: `${yearItem.year}年${monthInfo.month}`,
+      displayText: `${yearItem.year}年 ${monthInfo.month}（${monthInfo.ganZhi}，${monthInfo.startDateTime || monthInfo.startDate} 起，至 ${monthInfo.endDateTime || monthInfo.endDate} 交下节）`,
       promptPayload: {
-        scopeLabel: `当前选择：${yearItem.year}年${normalized.month}月流月`,
+        scopeLabel: `当前选择：${yearItem.year}年${monthInfo.month}流月`,
         summaryLines: [
           `所属大运：${cycleLabel}`,
           `所属流年：${yearItem.year}年 ${yearItem.ganZhi}`,
           `流月：${monthInfo.month} ${monthInfo.ganZhi}`,
+          `日期范围：${monthInfo.startDate} 至 ${monthInfo.endDate}`,
+          `交节时刻：${monthInfo.startTermName || ''} ${monthInfo.startDateTime || ''} 起，${monthInfo.endTermName || ''} ${monthInfo.endDateTime || ''} 交下节`,
         ],
         breakdownTitle: '该流月包含的流日',
-        breakdownLines: breakdown.map((item) => `${item.date} ${item.ganZhi}`),
+        breakdownLines: breakdown.map((item) => `${item.date} ${item.ganZhi}${item.boundaryNote ? `｜${item.boundaryNote}` : ''}`),
       },
     };
   }
@@ -368,9 +436,12 @@ export function buildFortuneSelectionContext(
     return null;
   }
 
-  const selectedMonth = normalized.month!;
-  const selectedDay = normalized.day;
-  const hourBreakdown = getDayHourBreakdown(yearItem.year, selectedMonth, selectedDay);
+  const actualDate = dayInfo.solarDate;
+  const [actualYear, actualMonth, actualDay] = actualDate.split('-').map(Number);
+  const hourBreakdown = getDayHourBreakdown(actualYear, actualMonth, actualDay);
+  const previousDate = new Date(actualYear, actualMonth - 1, actualDay - 1);
+  const ziChuStart = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${String(previousDate.getDate()).padStart(2, '0')} 23:00`;
+  const ziChuEnd = `${actualDate} 22:59`;
 
   return {
     ...baseContext,
@@ -381,23 +452,25 @@ export function buildFortuneSelectionContext(
     hourBreakdown,
     dayBreakdown: [
       {
-        date: formatSolarDate(yearItem.year, selectedMonth, selectedDay),
-        label: `${selectedDay}日`,
+        date: actualDate,
+        label: dayInfo.solarLabel,
         ganZhi: dayInfo.ganZhi,
       },
     ],
-    displayLabel: `${yearItem.year}-${formatDate(selectedMonth)}-${formatDate(selectedDay)}`,
-    displayText: `${yearItem.year}-${formatDate(selectedMonth)}-${formatDate(selectedDay)}（${dayInfo.ganZhi}）`,
+    displayLabel: actualDate,
+    displayText: `${actualDate}（${dayInfo.ganZhi}）`,
     promptPayload: {
-      scopeLabel: `当前选择：${yearItem.year}-${formatDate(selectedMonth)}-${formatDate(selectedDay)}流日`,
+      scopeLabel: `当前选择：${actualDate}流日`,
       summaryLines: [
         `所属大运：${cycleLabel}`,
         `所属流年：${yearItem.year}年 ${yearItem.ganZhi}`,
         `所属流月：${monthInfo.month} ${monthInfo.ganZhi}`,
-        `流日：${formatSolarDate(yearItem.year, selectedMonth, selectedDay)} ${dayInfo.ganZhi}`,
+        `流日：${actualDate} ${dayInfo.ganZhi}`,
+        `按子初换日：${ziChuStart} 至 ${ziChuEnd}`,
+        ...(dayInfo.boundaryNote ? [`交节提示：${dayInfo.boundaryNote}`] : []),
       ],
       breakdownTitle: '该流日包含的流时',
-      breakdownLines: hourBreakdown.map((item) => `${item.label} ${item.ganZhi}`),
+      breakdownLines: hourBreakdown.map((item) => `${item.label} ${item.timeRange || ''} ${item.ganZhi}`.trim()),
     },
   };
 }

@@ -1,13 +1,13 @@
 import type { QimenData, SupplementaryInfo } from '../types/divination';
 import { analyzeQuestion } from '../services/prompts/shared/question-analyzer';
 
-export interface QimenQuestionHint {
+interface QimenQuestionHint {
   label: string;
   value: string;
   gongs: number[];
 }
 
-export interface QimenPriorityPalace {
+interface QimenPriorityPalace {
   gong: number;
   name: string;
   score: number;

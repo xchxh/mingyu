@@ -180,7 +180,8 @@ export class BaziCalculator {
 
     const dayMasterGan = pillars.day.gan
     const genderEnum = gender === 'male' ? Gender.MAN : Gender.WOMAN
-    const luckInfo = this.luckCalculator.calculateLuckInfo(solarTime, genderEnum, pillars.hour.ganZhi, pillars.year.gan, dayMasterGan)
+    const luckInfo = this.luckCalculator.calculateLuckInfo(solarTime, genderEnum, dayMasterGan)
+    const liunian = this.flattenLiunian(luckInfo)
 
     return {
       gender, // 保持原始值 'male' | 'female'，仅在展示层转换
@@ -197,7 +198,7 @@ export class BaziCalculator {
       zodiac: lunarHour.getLunarDay().getLunarMonth().getLunarYear().getSixtyCycle().getEarthBranch().getZodiac().getName(),
       constellation: solarTime.getSolarDay().getConstellation().getName(),
       luckInfo,
-      liunian: luckInfo.cycles.flatMap(c => c.years || []),
+      liunian,
       timing,
       // 传递给扩展计算，避免重复创建
       solarTime,
@@ -231,7 +232,7 @@ export class BaziCalculator {
         jieqiList: []
       },
       analysis: {
-        dayMasterStrength: { score: 0, status: '未知', details: { timely: false, rootStrength: 0, supportStrength: 0 } },
+        dayMasterStrength: { score: 0, status: '未知', details: { seasonalScore: 0, timely: false, formationStrength: 0, rootStrength: 0, supportStrength: 0, constraintStrength: 0 } },
         mingGe: { pattern: '未知', isSpecial: false },
         usefulGod: { favorable: [], unfavorable: [], useful: '', avoid: '' }
       },
@@ -320,7 +321,9 @@ export class BaziCalculator {
       wuxingSeasonStatus: getSeasonStatus(pillars.month.zhi),
       monthCommander,
       seasonInfo,
-      analysis: this.analyzer.analyzeBaziChart(pillars, hiddenStems, monthCommander)
+      analysis: this.analyzer.analyzeBaziChart(pillars, hiddenStems, monthCommander, {
+        currentJieqi: seasonInfo.currentJieqi
+      })
     }
   }
 
@@ -368,6 +371,20 @@ export class BaziCalculator {
     }
 
     return timeInfo
+  }
+
+  private flattenLiunian(luckInfo: Pick<BaziChartResult, 'luckInfo'>['luckInfo']): LiunianInfo[] {
+    const liunianMap = new Map<number, LiunianInfo>()
+
+    luckInfo.cycles.forEach(cycle => {
+      const sourceYears = cycle.resolvedYears ?? cycle.years
+      sourceYears.forEach(yearInfo => {
+        // 交运年份若同时落在前后两步运中，默认以后一步大运为准
+        liunianMap.set(yearInfo.year, yearInfo)
+      })
+    })
+
+    return Array.from(liunianMap.values()).sort((a, b) => a.year - b.year)
   }
 }
 

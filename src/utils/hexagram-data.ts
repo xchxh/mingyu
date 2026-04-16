@@ -24,7 +24,7 @@ export interface TrigramData {
 }
 
 // 八卦数据（字符串键格式，用于二进制查找）
-export const trigramsByBinary: Record<string, TrigramData> = {
+const trigramsByBinary: Record<string, TrigramData> = {
   '111': { name: '乾', symbol: '☰', nature: '天', element: '金', lines: [1, 1, 1] },
   '110': { name: '兑', symbol: '☱', nature: '泽', element: '金', lines: [1, 1, 0] },
   '101': { name: '离', symbol: '☲', nature: '火', element: '火', lines: [1, 0, 1] },
@@ -46,9 +46,6 @@ export const trigramsByIndex: Record<number, TrigramData> = {
   7: trigramsByBinary['100'], // 艮
   8: trigramsByBinary['000'], // 坤
 };
-
-// 兼容性导出（保持原有接口）
-export const trigrams = trigramsByBinary;
 
 // 六十四卦完整数据（按传统八宫卦序排列）
 const rawHexagramsData = [
@@ -133,57 +130,11 @@ const rawHexagramsData = [
   { id: 54, name: '雷泽归妹', symbol: '☳☱', binarySymbol: '001110', upper: '震', lower: '兑', palace: '兑', description: '征凶，无攸利' }
 ];
 
-// 创建查找映射以提高性能
-const hexagramSymbolMap = new Map<string, HexagramData>();
-const hexagramBinaryMap = new Map<string, HexagramData>();
-const trigramNameMap = new Map<string, TrigramData>();
-
-// 初始化映射
-rawHexagramsData.forEach(hex => {
-  hexagramSymbolMap.set(hex.symbol, hex);
-  hexagramBinaryMap.set(hex.binarySymbol, hex);
-});
-
-Object.values(trigramsByBinary).forEach(trigram => {
-  trigramNameMap.set(trigram.name, trigram);
-});
-
 // 导出卦象数据
 export const hexagramsData: HexagramData[] = rawHexagramsData;
 
-// 根据卦象符号查找卦名
-export function getHexagramBySymbol(symbol: string): HexagramData | null {
-  const result = hexagramSymbolMap.get(symbol);
-  if (!result) {
-    throw new Error(`找不到符号为 "${symbol}" 的卦象`);
-  }
-  return result;
-}
-
-// 根据二进制符号查找卦名
-export function getHexagramByBinary(binarySymbol: string): HexagramData | null {
-  const result = hexagramBinaryMap.get(binarySymbol);
-  if (!result) {
-    throw new Error(`找不到二进制符号为 "${binarySymbol}" 的卦象`);
-  }
-  return result;
-}
-
-// 根据上下卦查找卦名
-export function getHexagramByTrigrams(upper: string, lower: string): HexagramData | null {
-  const upperTrigram = trigramNameMap.get(upper);
-  const lowerTrigram = trigramNameMap.get(lower);
-
-  if (!upperTrigram || !lowerTrigram) {
-    throw new Error(`无效的八卦名称: 上卦=${upper}, 下卦=${lower}`);
-  }
-
-  const symbol = `${upperTrigram.symbol}${lowerTrigram.symbol}`;
-  return getHexagramBySymbol(symbol);
-}
-
 // 获取三爻卦名称
-export function getTrigramName(symbol: string): string {
+function getTrigramName(symbol: string): string {
   const trigram = trigramsByBinary[symbol as keyof typeof trigramsByBinary];
   if (!trigram) {
     throw new Error(`找不到符号为 "${symbol}" 的八卦`);
@@ -192,38 +143,10 @@ export function getTrigramName(symbol: string): string {
 }
 
 // 获取三爻卦数据
-export function getTrigramBySymbol(symbol: string): TrigramData | null {
+function getTrigramBySymbol(symbol: string): TrigramData | null {
   const trigram = trigramsByBinary[symbol as keyof typeof trigramsByBinary];
   if (!trigram) {
     throw new Error(`找不到符号为 "${symbol}" 的八卦`);
   }
   return trigram;
-}
-
-// 验证卦象数据完整性
-export function validateHexagramData(): boolean {
-  // 检查是否有64个卦象
-  if (hexagramsData.length !== 64) {
-    throw new Error(`卦象数据不完整，期望64个，实际${hexagramsData.length}个`);
-  }
-
-  // 检查是否有重复的符号
-  const symbols = new Set<string>();
-  hexagramsData.forEach(hex => {
-    if (symbols.has(hex.symbol)) {
-      throw new Error(`发现重复的卦象符号: ${hex.symbol}`);
-    }
-    symbols.add(hex.symbol);
-  });
-
-  // 检查是否有重复的二进制符号
-  const binaries = new Set<string>();
-  hexagramsData.forEach(hex => {
-    if (binaries.has(hex.binarySymbol)) {
-      throw new Error(`发现重复的二进制符号: ${hex.binarySymbol}`);
-    }
-    binaries.add(hex.binarySymbol);
-  });
-
-  return true;
 }

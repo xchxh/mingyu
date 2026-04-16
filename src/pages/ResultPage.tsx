@@ -15,6 +15,7 @@ import {
   buildDecadalTimelineOptions,
   findCurrentDecadalOption,
   formatDecadalAgeRange,
+  type DecadalTimelineOption,
 } from '@/lib/iztro/decadal';
 import {
   buildResultSearch,
@@ -194,6 +195,21 @@ const baziCompatibilityShortcutActions = [
     promptId: 'ai-compat-friendship',
     question: '请重点分析我们两人的相处默契、冲突点和关系建议。',
   },
+  {
+    label: '子女' as const,
+    promptId: 'ai-compat-children',
+    question: '请重点分析我们两人的子女缘分深浅、子女性格倾向和亲子相处重点。',
+  },
+  {
+    label: '父母' as const,
+    promptId: 'ai-compat-parents',
+    question: '请重点分析我们双方父母的健康状况、需关注的风险方向和赡养建议。',
+  },
+  {
+    label: '兄弟' as const,
+    promptId: 'ai-compat-siblings',
+    question: '请重点分析我们两人之间兄弟朋友关系的亲疏、助力与牵制、相处建议。',
+  },
 ] as const;
 
 const ziweiSingleShortcutActions = [
@@ -318,6 +334,14 @@ function getZiweiShortcutActions(analysisMode: 'single' | 'compatibility') {
     : ziweiSingleShortcutActions;
 }
 
+function resolveCompatType(promptId: string): 'marriage' | 'children' | 'parents' | 'siblings' | undefined {
+  if (promptId === 'ai-compat-marriage') return 'marriage';
+  if (promptId === 'ai-compat-children') return 'children';
+  if (promptId === 'ai-compat-parents') return 'parents';
+  if (promptId === 'ai-compat-siblings') return 'siblings';
+  return undefined;
+}
+
 function findBaziShortcutByMode(
   mode: string,
   analysisMode: 'single' | 'compatibility',
@@ -425,6 +449,31 @@ function joinMultilineText(values: Array<string | undefined>, fallback = '暂无
   return joinText(values, fallback).replaceAll('、', '\n');
 }
 
+function formatUsefulGodPrioritySummary(result: BaziChartResult) {
+  const primary = result.analysis.usefulGod.primaryFavorableWuxing || result.analysis.usefulGod.favorableWuxing?.[0] || '暂无';
+  const secondary = joinText(result.analysis.usefulGod.secondaryFavorableWuxing || result.analysis.usefulGod.favorableWuxing?.slice(1) || [], '暂无');
+  return `主用:${primary} / 辅助:${secondary}`;
+}
+
+function formatAvoidGodPrioritySummary(result: BaziChartResult) {
+  const primary = result.analysis.usefulGod.primaryUnfavorableWuxing || result.analysis.usefulGod.unfavorableWuxing?.[0] || '暂无';
+  const secondary = joinText(result.analysis.usefulGod.secondaryUnfavorableWuxing || result.analysis.usefulGod.unfavorableWuxing?.slice(1) || [], '暂无');
+  return `主忌:${primary} / 次忌:${secondary}`;
+}
+
+function formatZiweiPromptScopeSummary(
+  scope: ZiweiScopeMode,
+  dateStr: string,
+  resolvedLabel?: string,
+) {
+  const label = resolvedLabel || ziweiScopeLabelMap[scope] || '本命';
+  if (!dateStr || scope === 'origin') {
+    return label;
+  }
+
+  return `${label} · ${dateStr}`;
+}
+
 function joinStarNames(stars: PalaceFact['major_stars'], fallback: string) {
   return stars.length > 0 ? stars.map((star) => star.name).join(' ') : fallback;
 }
@@ -436,6 +485,96 @@ function splitGanZhi(value: string) {
 function formatMonthDayLabel(dateStr: string) {
   const [, month, day] = dateStr.split('-');
   return `${month}/${day}`;
+}
+
+type ZiweiYearOption = {
+  year: number;
+  age: number;
+  dateStr: string;
+  label: string;
+  ganZhi: string;
+};
+
+type ZiweiMonthOption = {
+  month: number;
+  dateStr: string;
+  label: string;
+  ganZhi: string;
+};
+
+type ZiweiDayOption = {
+  day: number;
+  dateStr: string;
+  label: string;
+  ganZhi: string;
+};
+
+function parseZiweiDateParts(dateStr: string) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function buildZiweiMonthAnchorDate(dateStr: string) {
+  const parts = parseZiweiDateParts(dateStr);
+  if (!parts) {
+    return '';
+  }
+
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-15`;
+}
+
+function findZiweiDecadalIndexByDate(
+  decadalOptions: DecadalTimelineOption[],
+  dateStr: string,
+  fallbackIndex: number,
+) {
+  if (!dateStr || decadalOptions.length === 0) {
+    return fallbackIndex;
+  }
+
+  for (let index = decadalOptions.length - 1; index >= 0; index -= 1) {
+    if (dateStr >= decadalOptions[index].dateStr) {
+      return index;
+    }
+  }
+
+  return 0;
+}
+
+function findZiweiYearOptionDate(yearOptions: ZiweiYearOption[], dateStr: string) {
+  const parts = parseZiweiDateParts(dateStr);
+  if (!parts) {
+    return yearOptions[0]?.dateStr ?? '';
+  }
+
+  return yearOptions.find((item) => item.year === parts.year)?.dateStr ?? yearOptions[0]?.dateStr ?? '';
+}
+
+function findZiweiMonthOptionDate(monthOptions: ZiweiMonthOption[], dateStr: string) {
+  const parts = parseZiweiDateParts(dateStr);
+  if (!parts) {
+    return monthOptions[0]?.dateStr ?? '';
+  }
+
+  return (
+    monthOptions.find((item) => {
+      const optionParts = parseZiweiDateParts(item.dateStr);
+      return optionParts?.year === parts.year && optionParts?.month === parts.month;
+    })?.dateStr ?? monthOptions[0]?.dateStr ?? ''
+  );
+}
+
+function findZiweiDayOptionDate(dayOptions: ZiweiDayOption[], dateStr: string) {
+  const parts = parseZiweiDateParts(dateStr);
+  if (!parts) {
+    return dayOptions[0]?.dateStr ?? '';
+  }
+
+  return dayOptions.find((item) => item.day === parts.day)?.dateStr ?? dayOptions[0]?.dateStr ?? '';
 }
 
 function parseOptionalNumber(value: string) {
@@ -792,58 +931,458 @@ function ZiweiBoardSkeleton(props: {
 }
 
 function ZiweiScopeModal(props: {
+  chartInput: ChartInput;
+  payloadByScope: Record<ScopeType, AnalysisPayloadV1>;
   selectedScope: ZiweiScopeMode;
-  onApply: (scope: ZiweiScopeMode) => void;
+  selectedDateStr: string;
+  onApply: (scope: ZiweiScopeMode, dateStr: string) => void;
   onClose: () => void;
 }) {
-  const { selectedScope, onApply, onClose } = props;
+  const { chartInput, payloadByScope, selectedScope, selectedDateStr, onApply, onClose } = props;
+  const defaultContext = useMemo(() => getDefaultHoroscopeContext(), []);
+  const normalizedSelectedScope: Exclude<ZiweiScopeMode, 'hourly'> =
+    selectedScope === 'hourly' ? 'daily' : selectedScope;
+  const originPayload = payloadByScope.origin;
+  const birthSolarDate = originPayload.basic_info.solar_date;
+  const decadalOptions = useMemo(
+    () => buildDecadalTimelineOptions(originPayload.palaces, birthSolarDate),
+    [birthSolarDate, originPayload.palaces],
+  );
+  const currentDecadal = useMemo(
+    () => findCurrentDecadalOption(decadalOptions, payloadByScope.yearly.active_scope.nominal_age),
+    [decadalOptions, payloadByScope.yearly.active_scope.nominal_age],
+  );
+  const currentDecadalIndex = useMemo(
+    () => Math.max(0, decadalOptions.findIndex((item) => item === currentDecadal)),
+    [currentDecadal, decadalOptions],
+  );
+  const fallbackScopeDateStr =
+    selectedDateStr ||
+    payloadByScope.daily.active_scope.solar_date ||
+    payloadByScope.monthly.active_scope.solar_date ||
+    payloadByScope.yearly.active_scope.solar_date ||
+    defaultContext.dateStr;
+  const initialDecadalIndex = useMemo(
+    () => findZiweiDecadalIndexByDate(decadalOptions, fallbackScopeDateStr, currentDecadalIndex),
+    [currentDecadalIndex, decadalOptions, fallbackScopeDateStr],
+  );
+  const [draftScope, setDraftScope] = useState<Exclude<ZiweiScopeMode, 'hourly'>>(
+    normalizedSelectedScope,
+  );
+  const [draftDecadalIndex, setDraftDecadalIndex] = useState(initialDecadalIndex);
+  const [draftYearDateStr, setDraftYearDateStr] = useState(fallbackScopeDateStr);
+  const [draftMonthDateStr, setDraftMonthDateStr] = useState(
+    buildZiweiMonthAnchorDate(fallbackScopeDateStr),
+  );
+  const [draftDayDateStr, setDraftDayDateStr] = useState(fallbackScopeDateStr);
+  const [yearOptions, setYearOptions] = useState<ZiweiYearOption[]>([]);
+  const [monthOptions, setMonthOptions] = useState<ZiweiMonthOption[]>([]);
+  const [dayOptions, setDayOptions] = useState<ZiweiDayOption[]>([]);
+  const [isFortuneOptionsLoading, setIsFortuneOptionsLoading] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    setDraftScope(normalizedSelectedScope);
+    setDraftDecadalIndex(initialDecadalIndex);
+    setDraftYearDateStr(fallbackScopeDateStr);
+    setDraftMonthDateStr(buildZiweiMonthAnchorDate(fallbackScopeDateStr));
+    setDraftDayDateStr(fallbackScopeDateStr);
+  }, [fallbackScopeDateStr, initialDecadalIndex, normalizedSelectedScope]);
+
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('../workers/ziwei-fortune-options.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  const selectedDecadal = decadalOptions[draftDecadalIndex] ?? decadalOptions[0] ?? null;
+
+  useEffect(() => {
+    if (!workerRef.current) {
+      return;
+    }
+
+    const requestId = `${draftDecadalIndex}-${draftYearDateStr}-${draftMonthDateStr}-${Date.now()}`;
+    setIsFortuneOptionsLoading(true);
+
+    workerRef.current.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      yearOptions?: ZiweiYearOption[];
+      monthOptions?: ZiweiMonthOption[];
+      dayOptions?: ZiweiDayOption[];
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok) {
+        setYearOptions(event.data.yearOptions ?? []);
+        setMonthOptions(event.data.monthOptions ?? []);
+        setDayOptions(event.data.dayOptions ?? []);
+      } else {
+        setYearOptions([]);
+        setMonthOptions([]);
+        setDayOptions([]);
+      }
+
+      setIsFortuneOptionsLoading(false);
+    };
+
+    workerRef.current.postMessage({
+      id: requestId,
+      input: chartInput,
+      birthSolarDate,
+      hourIndex: defaultContext.hourIndex,
+      selectedDecadal: selectedDecadal
+        ? {
+            startAge: selectedDecadal.startAge,
+            endAge: selectedDecadal.endAge,
+            dateStr: selectedDecadal.dateStr,
+          }
+        : null,
+      selectedYearDateStr: draftYearDateStr,
+      selectedMonthDateStr: draftMonthDateStr,
+    });
+  }, [
+    birthSolarDate,
+    chartInput,
+    defaultContext.hourIndex,
+    draftDecadalIndex,
+    draftMonthDateStr,
+    draftYearDateStr,
+    selectedDecadal,
+  ]);
+
+  useEffect(() => {
+    if (!yearOptions.length) {
+      return;
+    }
+
+    const matchedDateStr = findZiweiYearOptionDate(yearOptions, draftDayDateStr || draftYearDateStr);
+    if (matchedDateStr && matchedDateStr !== draftYearDateStr) {
+      setDraftYearDateStr(matchedDateStr);
+    }
+  }, [draftDayDateStr, draftYearDateStr, yearOptions]);
+
+  useEffect(() => {
+    if (!monthOptions.length) {
+      return;
+    }
+
+    const matchedDateStr = findZiweiMonthOptionDate(
+      monthOptions,
+      draftDayDateStr || draftMonthDateStr || draftYearDateStr,
+    );
+    if (matchedDateStr && matchedDateStr !== draftMonthDateStr) {
+      setDraftMonthDateStr(matchedDateStr);
+    }
+  }, [draftDayDateStr, draftMonthDateStr, draftYearDateStr, monthOptions]);
+
+  useEffect(() => {
+    if (!dayOptions.length) {
+      return;
+    }
+
+    const matchedDateStr = findZiweiDayOptionDate(dayOptions, draftDayDateStr || draftMonthDateStr);
+    if (matchedDateStr && matchedDateStr !== draftDayDateStr) {
+      setDraftDayDateStr(matchedDateStr);
+    }
+  }, [dayOptions, draftDayDateStr, draftMonthDateStr]);
+
+  const selectedYearItem = yearOptions.find((item) => item.dateStr === draftYearDateStr) ?? yearOptions[0];
+  const selectedMonthItem =
+    monthOptions.find((item) => item.dateStr === draftMonthDateStr) ?? monthOptions[0];
+  const selectedDayItem = dayOptions.find((item) => item.dateStr === draftDayDateStr) ?? dayOptions[0];
+  const quickActions: Array<{ scope: Exclude<ZiweiScopeMode, 'origin' | 'hourly'>; label: string }> = [
+    { scope: 'decadal', label: '大限' },
+    { scope: 'yearly', label: '流年' },
+    { scope: 'monthly', label: '流月' },
+    { scope: 'daily', label: '流日' },
+  ];
+  const quickScopeDateMap: Record<Exclude<ZiweiScopeMode, 'origin' | 'hourly'>, string> = {
+    decadal: payloadByScope.decadal.active_scope.solar_date,
+    yearly: payloadByScope.yearly.active_scope.solar_date,
+    monthly: payloadByScope.monthly.active_scope.solar_date,
+    daily: payloadByScope.daily.active_scope.solar_date,
+  };
+  const draftScopeDateStr = (() => {
+    switch (draftScope) {
+      case 'origin':
+        return '';
+      case 'decadal':
+        return selectedDecadal?.dateStr ?? '';
+      case 'yearly':
+        return selectedYearItem?.dateStr ?? draftYearDateStr ?? '';
+      case 'monthly':
+        return selectedMonthItem?.dateStr ?? draftMonthDateStr ?? draftYearDateStr ?? '';
+      case 'daily':
+        return selectedDayItem?.dateStr ?? draftDayDateStr ?? draftMonthDateStr ?? draftYearDateStr ?? '';
+      default:
+        return '';
+    }
+  })();
+  const draftScopeDetailLabel = (() => {
+    switch (draftScope) {
+      case 'origin':
+        return '';
+      case 'decadal':
+        return selectedDecadal ? `${selectedDecadal.label} ${formatDecadalAgeRange(selectedDecadal)}岁` : '';
+      case 'yearly':
+        return selectedYearItem ? `${selectedYearItem.year}年 ${selectedYearItem.ganZhi}` : '';
+      case 'monthly':
+        return selectedMonthItem ? `${selectedMonthItem.label} ${selectedMonthItem.ganZhi}` : '';
+      case 'daily':
+        return selectedDayItem ? `${selectedDayItem.label} ${selectedDayItem.ganZhi}` : '';
+      default:
+        return '';
+    }
+  })();
+  const summaryText =
+    draftScope === 'origin'
+      ? '仅使用本命信息，不附加任何大限流年流月流日。'
+      : formatZiweiPromptScopeSummary(draftScope, draftScopeDateStr, draftScopeDetailLabel);
+  const isDecadalDetailActive = draftScope === 'decadal';
+  const isYearOverallActive = draftScope === 'decadal';
+  const isYearDetailActive = draftScope === 'yearly';
+  const isMonthOverallActive = draftScope === 'yearly';
+  const isMonthDetailActive = draftScope === 'monthly';
+  const isDayOverallActive = draftScope === 'monthly';
+  const isDayDetailActive = draftScope === 'daily';
+  const showYearRow = draftScope !== 'origin';
+  const showMonthRow = ['yearly', 'monthly', 'daily'].includes(draftScope);
+  const showDayRow = ['monthly', 'daily'].includes(draftScope);
+
+  function handleJumpToCurrent(scope: Exclude<ZiweiScopeMode, 'origin' | 'hourly'>) {
+    const nextDateStr = quickScopeDateMap[scope] || defaultContext.dateStr;
+    setDraftScope(scope);
+    setDraftDecadalIndex(findZiweiDecadalIndexByDate(decadalOptions, nextDateStr, currentDecadalIndex));
+    setDraftYearDateStr(nextDateStr);
+    setDraftMonthDateStr(buildZiweiMonthAnchorDate(nextDateStr));
+    setDraftDayDateStr(nextDateStr);
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card ziwei-scope-modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-card bazi-fortune-modal" onClick={(event) => event.stopPropagation()}>
         <div className="panel-head">
           <div>
             <h2>选择年限</h2>
-            <p>切换紫微提示词使用的运限层级。</p>
           </div>
         </div>
 
         <div className="draft-tip">
-          <strong>当前使用：</strong>
-          {ziweiScopeLabelMap[selectedScope]}
+          <strong>当前将写入：</strong>
+          {summaryText}
+        </div>
+
+        <div className="fortune-modal-summary-row">
+          <span className="fortune-modal-quick-label">当前</span>
+          <div className="fortune-modal-quick-actions">
+            {quickActions.map((item) => (
+              <button
+                type="button"
+                key={item.scope}
+                className={`fortune-modal-quick-btn ${draftScope === item.scope ? 'is-active' : ''}`}
+                onClick={() => handleJumpToCurrent(item.scope)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <span className="result-chip result-chip-highlight">
+            {ziweiScopeLabelMap[draftScope]}
+          </span>
+          {draftScopeDetailLabel ? <span className="result-chip">{draftScopeDetailLabel}</span> : null}
         </div>
 
         <div className="fortune-modal-grid">
           <section className="fortune-modal-section">
             <div className="fortune-modal-section-head">
-              <h3>紫微运限</h3>
-              <small>点击后直接切换提示词所用的紫微运限层级。</small>
+              <h3>大限</h3>
+              <small>先选某一步大限，才会展开下一排流年。</small>
             </div>
             <div className="fortune-modal-list">
-              {Object.entries(ziweiScopeLabelMap).map(([key, label]) => (
+              {decadalOptions.map((item, index) => (
                 <button
                   type="button"
-                  key={key}
+                  key={`${item.label}-${item.startAge}-${item.endAge}`}
                   className={`fortune-modal-item ${
-                    selectedScope === key ? 'is-active is-selected' : ''
+                    isDecadalDetailActive && draftDecadalIndex === index ? 'is-active is-selected' : ''
                   }`}
                   onClick={() => {
-                    onApply(key as ZiweiScopeMode);
-                    onClose();
+                    setDraftDecadalIndex(index);
+                    setDraftScope('decadal');
                   }}
                 >
-                  <strong>{label}</strong>
-                  <span>用于紫微提示词分析</span>
+                  <strong>{item.label}</strong>
+                  <span>{formatDecadalAgeRange(item)}岁</span>
+                  <span>{item.dateStr} 起</span>
                 </button>
               ))}
             </div>
           </section>
+
+          {showYearRow ? (
+            <section className="fortune-modal-section">
+              <div className="fortune-modal-section-head">
+                <h3>流年</h3>
+                <small>第一项是大限；选具体流年后，才会展开下一排流月。</small>
+              </div>
+              <div className="fortune-modal-list">
+                <button
+                  type="button"
+                  className={`fortune-modal-item fortune-modal-item-overall ${
+                    isYearOverallActive ? 'is-selected is-active' : ''
+                  }`}
+                  onClick={() => setDraftScope('decadal')}
+                >
+                  <strong>大限</strong>
+                  <span>
+                    {selectedDecadal ? `${selectedDecadal.label} ${formatDecadalAgeRange(selectedDecadal)}岁` : ''}
+                  </span>
+                </button>
+                {yearOptions.map((item) => (
+                  <button
+                    type="button"
+                    key={item.dateStr}
+                    className={`fortune-modal-item ${
+                      isYearDetailActive && draftYearDateStr === item.dateStr
+                        ? 'is-active is-selected'
+                        : ''
+                    }`}
+                    onClick={() => {
+                      setDraftYearDateStr(item.dateStr);
+                      setDraftMonthDateStr(buildZiweiMonthAnchorDate(item.dateStr));
+                      setDraftDayDateStr(item.dateStr);
+                      setDraftScope('yearly');
+                    }}
+                  >
+                    <strong>{item.year}年</strong>
+                    <span>{item.ganZhi}</span>
+                    <span>{item.age} 岁</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {showMonthRow ? (
+            <section className="fortune-modal-section">
+              <div className="fortune-modal-section-head">
+                <h3>流月</h3>
+                <small>第一项是流年；选具体流月后，才会展开下一排流日。</small>
+              </div>
+              <div className="fortune-modal-list">
+                <button
+                  type="button"
+                  className={`fortune-modal-item fortune-modal-item-overall ${
+                    isMonthOverallActive ? 'is-selected is-active' : ''
+                  }`}
+                  onClick={() => setDraftScope('yearly')}
+                >
+                  <strong>流年</strong>
+                  <span>{selectedYearItem ? `${selectedYearItem.year}年` : ''}</span>
+                </button>
+                {monthOptions.map((item) => (
+                  <button
+                    type="button"
+                    key={item.dateStr}
+                    className={`fortune-modal-item ${
+                      isMonthDetailActive && draftMonthDateStr === item.dateStr
+                        ? 'is-active is-selected'
+                        : ''
+                    }`}
+                    onClick={() => {
+                      setDraftMonthDateStr(item.dateStr);
+                      setDraftDayDateStr(item.dateStr);
+                      setDraftScope('monthly');
+                    }}
+                  >
+                    <strong>{item.label}</strong>
+                    <span>{item.ganZhi}</span>
+                    <span>{formatMonthDayLabel(item.dateStr)}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {showDayRow ? (
+            <section className="fortune-modal-section">
+              <div className="fortune-modal-section-head">
+                <h3>流日</h3>
+                <small>第一项是流月；选具体流日时，只写这个流日本身。</small>
+              </div>
+              <div className="fortune-modal-list">
+                <button
+                  type="button"
+                  className={`fortune-modal-item fortune-modal-item-overall ${
+                    isDayOverallActive ? 'is-selected is-active' : ''
+                  }`}
+                  onClick={() => setDraftScope('monthly')}
+                >
+                  <strong>流月</strong>
+                  <span>{selectedMonthItem ? selectedMonthItem.label : ''}</span>
+                </button>
+                {dayOptions.map((item) => (
+                  <button
+                    type="button"
+                    key={item.dateStr}
+                    className={`fortune-modal-item ${
+                      isDayDetailActive && draftDayDateStr === item.dateStr
+                        ? 'is-active is-selected'
+                        : ''
+                    }`}
+                    onClick={() => {
+                      setDraftDayDateStr(item.dateStr);
+                      setDraftScope('daily');
+                    }}
+                  >
+                    <strong>{item.label}</strong>
+                    <span>{item.ganZhi}</span>
+                    <span>{item.day} 日</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        <div className="modal-actions">
-          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>
-            关闭
-          </button>
+        {isFortuneOptionsLoading && yearOptions.length === 0 && monthOptions.length === 0 && dayOptions.length === 0 ? (
+          <BaziFortuneLoadingCard />
+        ) : null}
+
+        <div className="modal-actions modal-actions-split">
+          <div className="modal-actions-left">
+            <button
+              type="button"
+              className="modal-btn modal-btn-secondary"
+              onClick={() => setDraftScope('origin')}
+            >
+              仅用本命
+            </button>
+          </div>
+          <div className="modal-actions-right">
+            <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="modal-btn modal-btn-primary"
+              onClick={() => {
+                onApply(draftScope, draftScopeDateStr);
+                onClose();
+              }}
+            >
+              确定
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -852,22 +1391,22 @@ function ZiweiScopeModal(props: {
 
 function ZiweiFortuneSelector(props: {
   chartInput: ChartInput;
-  runtime: NonNullable<ZiweiRuntimeState>;
+  payloadByScope: Record<ScopeType, AnalysisPayloadV1>;
   selectedScope: ScopeType;
   selectedDateStr: string;
   onSelectScopeDate: (scope: ScopeType, dateStr: string) => void;
 }) {
-  const { chartInput, runtime, selectedScope, selectedDateStr, onSelectScopeDate } = props;
+  const { chartInput, payloadByScope, selectedScope, selectedDateStr, onSelectScopeDate } = props;
   const defaultContext = useMemo(() => getDefaultHoroscopeContext(), []);
-  const originPayload = runtime.payloadByScope.origin;
+  const originPayload = payloadByScope.origin;
   const birthSolarDate = originPayload.basic_info.solar_date;
   const decadalOptions = useMemo(
     () => buildDecadalTimelineOptions(originPayload.palaces, birthSolarDate),
     [birthSolarDate, originPayload.palaces],
   );
   const initialDecadal = useMemo(
-    () => findCurrentDecadalOption(decadalOptions, runtime.payloadByScope.yearly.active_scope.nominal_age),
-    [decadalOptions, runtime],
+    () => findCurrentDecadalOption(decadalOptions, payloadByScope.yearly.active_scope.nominal_age),
+    [decadalOptions, payloadByScope],
   );
   const [selectedDecadalIndex, setSelectedDecadalIndex] = useState(
     Math.max(0, decadalOptions.findIndex((item) => item === initialDecadal)),
@@ -1237,14 +1776,14 @@ const BaziChartBoard = memo(function BaziChartBoard(props: {
           <small>{result.analysis.dayMasterStrength.status}</small>
         </div>
         <div className="result-stat-card">
-          <span>用神</span>
-          <strong>{result.analysis.usefulGod.useful || '待定'}</strong>
-          <small>{joinText(result.analysis.usefulGod.favorableWuxing ?? [], '暂无')}</small>
+          <span>核心用神</span>
+          <strong>{result.analysis.usefulGod.primaryUseful || result.analysis.usefulGod.useful || '待定'}</strong>
+          <small>{formatUsefulGodPrioritySummary(result)}</small>
         </div>
         <div className="result-stat-card">
-          <span>忌神</span>
-          <strong>{result.analysis.usefulGod.avoid || '待定'}</strong>
-          <small>{joinText(result.analysis.usefulGod.unfavorableWuxing ?? [], '暂无')}</small>
+          <span>核心忌神</span>
+          <strong>{result.analysis.usefulGod.primaryAvoid || result.analysis.usefulGod.avoid || '待定'}</strong>
+          <small>{formatAvoidGodPrioritySummary(result)}</small>
         </div>
       </div>
 
@@ -1713,7 +2252,7 @@ const ZiweiBoard = memo(function ZiweiBoard(props: {
 
           <ZiweiFortuneSelector
             chartInput={chartInput}
-            runtime={runtime}
+            payloadByScope={runtime.payloadByScope}
             selectedScope={selectedScope}
             selectedDateStr={selectedDateStr}
             onSelectScopeDate={(scope, dateStr) => {
@@ -1762,6 +2301,8 @@ export function ResultPage() {
   const [ziweiPayloadByScope, setZiweiPayloadByScope] = useState<ZiweiPayloadByScopeState>(null);
   const [partnerZiweiPayloadByScope, setPartnerZiweiPayloadByScope] =
     useState<ZiweiPayloadByScopeState>(null);
+  const [promptZiweiPayload, setPromptZiweiPayload] = useState<AnalysisPayloadV1 | null>(null);
+  const [promptPartnerZiweiPayload, setPromptPartnerZiweiPayload] = useState<AnalysisPayloadV1 | null>(null);
   const [ziweiError, setZiweiError] = useState('');
   const [shareState, setShareState] = useState('分享');
   const [copyState, setCopyState] = useState('复制');
@@ -2270,15 +2811,115 @@ export function ResultPage() {
   const activePartnerZiweiPayloadByScope =
     partnerZiweiRuntime?.payloadByScope ?? partnerZiweiPayloadByScope;
 
-  const currentZiweiPayload = useMemo(() => {
+  const ziweiPromptScopeType = promptState.ziweiScope as ScopeType;
+  const shouldUseCustomZiweiPromptPayload =
+    promptState.tab === 'prompt' &&
+    promptState.promptSource === 'ziwei' &&
+    Boolean(promptState.ziweiScopeDate);
+
+  useEffect(() => {
+    if (!shouldUseCustomZiweiPromptPayload || !primaryZiweiInput || !promptState.ziweiScopeDate) {
+      setPromptZiweiPayload(null);
+      return;
+    }
+
+    const worker = new Worker(new URL('../workers/ziwei-display.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const requestId = `prompt-primary-${ziweiPromptScopeType}-${promptState.ziweiScopeDate}-${Date.now()}`;
+    const { hourIndex } = getDefaultHoroscopeContext();
+
+    worker.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      payload?: AnalysisPayloadV1;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok && event.data.payload) {
+        setPromptZiweiPayload(event.data.payload);
+      } else {
+        setPromptZiweiPayload(null);
+      }
+
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      id: requestId,
+      input: primaryZiweiInput,
+      dateStr: promptState.ziweiScopeDate,
+      hourIndex,
+      scope: ziweiPromptScopeType,
+    });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [primaryZiweiInput, promptState.promptSource, promptState.tab, promptState.ziweiScopeDate, shouldUseCustomZiweiPromptPayload, ziweiPromptScopeType]);
+
+  useEffect(() => {
+    if (
+      !shouldUseCustomZiweiPromptPayload ||
+      inputState.analysisMode !== 'compatibility' ||
+      !partnerZiweiInput ||
+      !promptState.ziweiScopeDate
+    ) {
+      setPromptPartnerZiweiPayload(null);
+      return;
+    }
+
+    const worker = new Worker(new URL('../workers/ziwei-display.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    const requestId = `prompt-partner-${ziweiPromptScopeType}-${promptState.ziweiScopeDate}-${Date.now()}`;
+    const { hourIndex } = getDefaultHoroscopeContext();
+
+    worker.onmessage = (event: MessageEvent<{
+      id: string;
+      ok: boolean;
+      payload?: AnalysisPayloadV1;
+    }>) => {
+      if (event.data.id !== requestId) {
+        return;
+      }
+
+      if (event.data.ok && event.data.payload) {
+        setPromptPartnerZiweiPayload(event.data.payload);
+      } else {
+        setPromptPartnerZiweiPayload(null);
+      }
+
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      id: requestId,
+      input: partnerZiweiInput,
+      dateStr: promptState.ziweiScopeDate,
+      hourIndex,
+      scope: ziweiPromptScopeType,
+    });
+
+    return () => {
+      worker.terminate();
+    };
+  }, [inputState.analysisMode, partnerZiweiInput, promptState.promptSource, promptState.tab, promptState.ziweiScopeDate, shouldUseCustomZiweiPromptPayload, ziweiPromptScopeType]);
+
+  const defaultZiweiPayload = useMemo(() => {
     if (!activeZiweiPayloadByScope) return null;
     return activeZiweiPayloadByScope[promptState.ziweiScope as ScopeType];
   }, [activeZiweiPayloadByScope, promptState.ziweiScope]);
 
-  const partnerZiweiPayload = useMemo(() => {
+  const defaultPartnerZiweiPayload = useMemo(() => {
     if (!activePartnerZiweiPayloadByScope) return null;
     return activePartnerZiweiPayloadByScope[promptState.ziweiScope as ScopeType];
   }, [activePartnerZiweiPayloadByScope, promptState.ziweiScope]);
+
+  const currentZiweiPayload = promptZiweiPayload ?? defaultZiweiPayload;
+  const partnerZiweiPayload = promptPartnerZiweiPayload ?? defaultPartnerZiweiPayload;
 
   const selectedBaziPreset = useMemo(
     () => {
@@ -2391,6 +3032,7 @@ export function ResultPage() {
         effectiveBaziQuickQuestion.trim() || '请先从婚恋匹配角度做整体解读。',
         baziResult,
         partnerBaziResult,
+        resolveCompatType(promptState.baziPresetId),
       );
       return buildCombinedPromptText(compatibilityPrompt.system, compatibilityPrompt.user);
     }
@@ -2409,8 +3051,6 @@ export function ResultPage() {
       finalBaziQuestion,
       selectedBaziPreset,
       baziResult,
-      0,
-      false,
       baziFortuneContext,
     );
     return buildCombinedPromptText(system, user);
@@ -2447,6 +3087,7 @@ export function ResultPage() {
         deferredBaziQuickQuestion.trim() || '请先从婚恋匹配角度做整体解读。',
         baziResult,
         partnerBaziResult,
+        resolveCompatType(promptState.baziPresetId),
       );
       return buildCombinedPromptText(compatibilityPrompt.system, compatibilityPrompt.user);
     }
@@ -2465,8 +3106,6 @@ export function ResultPage() {
       deferredFinalBaziQuestion,
       selectedBaziPreset,
       baziResult,
-      0,
-      false,
       baziFortuneContext,
     );
     return buildCombinedPromptText(system, user);
@@ -2518,7 +3157,14 @@ export function ResultPage() {
   const isBaziFortuneSummaryLoading =
     shouldLoadBaziPromptModules && !baziFortuneSelectionModule;
   const baziFortuneSummaryText = baziFortuneContext?.displayText ?? '仅使用本命信息';
-  const ziweiScopeSummaryText = ziweiScopeLabelMap[promptState.ziweiScope] ?? '本命';
+  const ziweiScopeSummaryText =
+    promptState.ziweiScope === 'origin'
+      ? '仅使用本命信息'
+      : formatZiweiPromptScopeSummary(
+          promptState.ziweiScope,
+          promptState.ziweiScopeDate,
+          promptState.ziweiScopeDate ? currentZiweiPayload?.active_scope.label : undefined,
+        );
   const showShareButton = shouldShowPromptShareButton({
     viewportWidth,
     hasNavigatorShare: typeof navigator !== 'undefined' && typeof navigator.share === 'function',
@@ -2862,10 +3508,14 @@ export function ResultPage() {
                         type="button"
                         className="place-trigger"
                         onClick={() => setIsZiweiScopeModalOpen(true)}
+                        disabled={!primaryZiweiInput || !activeZiweiPayloadByScope}
                       >
-                        <span>{ziweiScopeSummaryText}</span>
+                        {!primaryZiweiInput || !activeZiweiPayloadByScope ? (
+                          <InlineSkeleton className="inline-skeleton inline-skeleton-medium" />
+                        ) : (
+                          <span>{ziweiScopeSummaryText}</span>
+                        )}
                       </button>
-                      <small>点击后用模态窗切换紫微提示词使用的运限层级。</small>
                     </div>
                   ) : null}
                 </div>
@@ -3037,13 +3687,17 @@ export function ResultPage() {
         </Suspense>
       ) : null}
 
-      {isZiweiScopeModalOpen ? (
+      {isZiweiScopeModalOpen && primaryZiweiInput && activeZiweiPayloadByScope ? (
         <ZiweiScopeModal
+          chartInput={primaryZiweiInput}
+          payloadByScope={activeZiweiPayloadByScope}
           selectedScope={promptState.ziweiScope}
+          selectedDateStr={promptState.ziweiScopeDate}
           onClose={() => setIsZiweiScopeModalOpen(false)}
-          onApply={(scope) =>
+          onApply={(scope, dateStr) =>
             updatePromptState({
               ziweiScope: scope,
+              ziweiScopeDate: scope === 'origin' ? '' : dateStr,
             })
           }
         />

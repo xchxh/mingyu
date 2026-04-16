@@ -1,9 +1,10 @@
 import {
+  type ClimateRule,
   CLIMATE_RULES,
   STRENGTH_HINT_RULES,
   THERAPEUTIC_PRIORITY_RULES
 } from './baziTherapeuticRules'
-import { matchFirstRule } from './baziRuleMatcher'
+import { matchFirstRule, type HiddenStemSource, type VisibleStemSource } from './baziRuleMatcher'
 
 interface UsefulGodDecisionStateLike {
   favorableWuxing: string[];
@@ -15,15 +16,35 @@ interface UsefulGodDecisionStateLike {
 function resolveTherapeuticHintRule(
   strengthStatus: string,
   dmWuxing: string,
-  monthBranch?: string
+  yearStem?: string,
+  dayMasterStem?: string,
+  monthBranch?: string,
+  hourBranch?: string,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
 ) {
   if (!monthBranch) {
     return null
   }
 
   const climateRule = matchFirstRule(CLIMATE_RULES, {
+    yearStem,
     monthBranch,
-    dayMaster: dmWuxing
+    hourBranch,
+    dayMaster: dmWuxing,
+    dayStem: dayMasterStem,
+    currentJieqi,
+    visibleStems,
+    visibleStemSources,
+    hiddenStems,
+    hiddenStemSources,
+    formationWuxings,
+    wuxingCounts
   })
   if (climateRule) {
     return climateRule
@@ -37,22 +58,82 @@ function resolveTherapeuticHintRule(
 export function resolveTherapeuticHint(
   strengthStatus: string,
   dmWuxing: string,
-  monthBranch?: string
+  yearStem?: string,
+  dayMasterStem?: string,
+  monthBranch?: string,
+  hourBranch?: string,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
 ): string {
-  return resolveTherapeuticHintRule(strengthStatus, dmWuxing, monthBranch)?.hint || ''
+  return resolveTherapeuticHintRule(strengthStatus, dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)?.hint || ''
 }
 
 export function resolveTherapeuticHintRuleId(
   strengthStatus: string,
   dmWuxing: string,
-  monthBranch?: string
+  yearStem?: string,
+  dayMasterStem?: string,
+  monthBranch?: string,
+  hourBranch?: string,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
 ): string {
-  return resolveTherapeuticHintRule(strengthStatus, dmWuxing, monthBranch)?.id || ''
+  return resolveTherapeuticHintRule(strengthStatus, dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)?.id || ''
+}
+
+function normalizeWuxingOrder(order: string[]): string[] {
+  return [...new Set(order.filter(Boolean))]
+}
+
+function matchClimateRule(
+  dmWuxing: string,
+  yearStem: string | undefined,
+  dayMasterStem: string | undefined,
+  monthBranch: string | undefined,
+  hourBranch: string | undefined,
+  isPatternSpecial: boolean,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
+): ClimateRule | undefined {
+  if (!monthBranch || isPatternSpecial) {
+    return undefined
+  }
+
+  return matchFirstRule(CLIMATE_RULES, {
+    yearStem,
+    monthBranch,
+    hourBranch,
+    dayMaster: dmWuxing,
+    dayStem: dayMasterStem,
+    currentJieqi,
+    visibleStems,
+    visibleStemSources,
+    hiddenStems,
+    hiddenStemSources,
+    formationWuxings,
+    wuxingCounts
+  })
 }
 
 export function resolveTherapeuticPriorityWuxing(
   strengthStatus: string,
   dmWuxing: string,
+  dayMasterStem: string | undefined,
   monthBranch: string | undefined,
   isPatternSpecial: boolean,
   wuxingSheng: Record<string, string>
@@ -63,7 +144,9 @@ export function resolveTherapeuticPriorityWuxing(
 
   const priorityRule = matchFirstRule(THERAPEUTIC_PRIORITY_RULES, {
     monthBranch,
-    strengthStatus
+    strengthStatus,
+    dayMaster: dmWuxing,
+    dayStem: dayMasterStem
   })
 
   if (!priorityRule) {
@@ -79,24 +162,54 @@ export function resolveTherapeuticPriorityWuxing(
 
 export function resolveClimateUsefulWuxing(
   dmWuxing: string,
+  yearStem: string | undefined,
+  dayMasterStem: string | undefined,
   monthBranch: string | undefined,
-  isPatternSpecial: boolean
+  hourBranch: string | undefined,
+  isPatternSpecial: boolean,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
 ): string {
-  if (!monthBranch || isPatternSpecial) {
-    return ''
+  return resolveClimateFavorableOrder(dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, isPatternSpecial, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)[0] || ''
+}
+
+export function resolveClimateFavorableOrder(
+  dmWuxing: string,
+  yearStem: string | undefined,
+  dayMasterStem: string | undefined,
+  monthBranch: string | undefined,
+  hourBranch: string | undefined,
+  isPatternSpecial: boolean,
+  currentJieqi?: string,
+  visibleStems?: string[],
+  visibleStemSources?: VisibleStemSource[],
+  hiddenStems?: string[],
+  hiddenStemSources?: HiddenStemSource[],
+  formationWuxings?: string[],
+  wuxingCounts?: Record<string, number>
+): string[] {
+  const climateRule = matchClimateRule(dmWuxing, yearStem, dayMasterStem, monthBranch, hourBranch, isPatternSpecial, currentJieqi, visibleStems, visibleStemSources, hiddenStems, hiddenStemSources, formationWuxings, wuxingCounts)
+  if (!climateRule) {
+    return []
   }
 
-  return matchFirstRule(CLIMATE_RULES, {
-    monthBranch,
-    dayMaster: dmWuxing
-  })?.usefulWuxing || ''
+  return normalizeWuxingOrder([
+    ...(climateRule.favorableOrder || []),
+    climateRule.usefulWuxing
+  ])
 }
 
 export function applyClimateAdjustment<T extends UsefulGodDecisionStateLike>(
   state: T,
-  climateUsefulWuxing: string
+  climateFavorableOrder: string[]
 ): { state: T; adjusted: boolean } {
-  if (!climateUsefulWuxing) {
+  const normalizedOrder = normalizeWuxingOrder(climateFavorableOrder)
+  if (normalizedOrder.length === 0) {
     return { state, adjusted: false }
   }
 
@@ -104,11 +217,11 @@ export function applyClimateAdjustment<T extends UsefulGodDecisionStateLike>(
     state: {
       ...state,
       favorableWuxing: [
-        climateUsefulWuxing,
-        ...state.favorableWuxing.filter(wx => wx !== climateUsefulWuxing)
+        ...normalizedOrder,
+        ...state.favorableWuxing.filter(wx => !normalizedOrder.includes(wx))
       ],
-      unfavorableWuxing: state.unfavorableWuxing.filter(wx => wx !== climateUsefulWuxing),
-      trace: [...state.trace, `调候优先:${climateUsefulWuxing}`],
+      unfavorableWuxing: state.unfavorableWuxing.filter(wx => !normalizedOrder.includes(wx)),
+      trace: [...state.trace, `调候优先:${normalizedOrder.join(' -> ')}`],
       primaryReason: '调候'
     } as T,
     adjusted: true

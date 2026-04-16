@@ -311,7 +311,7 @@ export const tarotSpreads = {
 };
 
 // 三牌抽取 - 与原项目sp.js完全一致
-export function drawThreeCards() {
+function drawThreeCards() {
   const shuffled = shuffleCards();
   const cards = [];
   const positions = ['过去', '现在', '未来'];
@@ -363,18 +363,18 @@ export function drawSpreadCards(spreadType: keyof typeof tarotSpreads) {
 }
 
 // 获取塔罗牌名称（包含正逆位）
-export function getCardDisplayName(card: { name: string }, isReversed: boolean) {
+function getCardDisplayName(card: { name: string }, isReversed: boolean) {
   return isReversed ? `${card.name}（逆位）` : card.name;
 }
 
 // 获取牌阵的默认问题
-export function getSpreadDefaultQuestions(spreadType: keyof typeof tarotSpreads): string[] {
+function getSpreadDefaultQuestions(spreadType: keyof typeof tarotSpreads): string[] {
   const spread = tarotSpreads[spreadType];
   return spread?.defaultQuestions || [];
 }
 
 // 随机获取一个默认问题
-export function getRandomDefaultQuestion(spreadType: keyof typeof tarotSpreads): string {
+function getRandomDefaultQuestion(spreadType: keyof typeof tarotSpreads): string {
   const questions = getSpreadDefaultQuestions(spreadType);
   if (questions.length === 0) return '';
   return questions[Math.floor(Math.random() * questions.length)];

@@ -8,7 +8,7 @@ import type { LiuyaoYaoDetail, LiuyaoData, MeihuaData } from '../types/divinatio
 /**
  * 六爻专用工具函数
  */
-export const LiuyaoHelpers = {
+const LiuyaoHelpers = {
   getChangedYaoType(yaoType: '阳' | '阴'): '阳' | '阴' {
     return yaoType === '阳' ? '阴' : '阳';
   },

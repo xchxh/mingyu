@@ -5,14 +5,10 @@
  * It serves as a centralized "knowledge base" to be used across the application.
  */
 
-export * from './baziCoreData'
+export * from './baziMappingsData'
+export * from './baziElementData'
 export {
   shenShaTypes,
   getShenShaCategory,
-  getShenShaDescription,
-  getShenShaEffects,
-  getShenShaAdvice,
-  getShenShaTaboos,
-  getShenShaCategoryClass
 } from './baziShenShaData'
 export * from './baziDisplayData'

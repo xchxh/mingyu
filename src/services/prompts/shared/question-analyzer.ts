@@ -3,7 +3,61 @@
  * 从 enhanced-shared.ts 中提取核心功能，去除冗余
  */
 
-import type { QuestionType, ComplexityLevel, EmotionState, UserExperienceLevel, QuestionAnalysis } from './types';
+// ============================================================================
+// 问题分析相关类型（从 types.ts 合并）
+// ============================================================================
+
+/** 问题类型检测结果 */
+interface QuestionType {
+  isQuestion: boolean;
+  isChoice: boolean;
+  isTime: boolean;
+  isAction: boolean;
+  isFeasibility: boolean;
+  isRelationship: boolean;
+  isCareer: boolean;
+  isFinance: boolean;
+  isHealth: boolean;
+  isStudy: boolean;
+  isReason: boolean;
+  isPrediction: boolean;
+  isAdvice: boolean;
+  isComparison: boolean;
+  isQuantity: boolean;
+  isLocation: boolean;
+  isPerson: boolean;
+}
+
+/** 复杂度评估结果 */
+interface ComplexityLevel {
+  complexity: 'simple' | 'medium' | 'complex';
+  factors: string[];
+  requiredDepth: number;
+  timeUrgency: 'low' | 'medium' | 'high';
+  importance: 'low' | 'medium' | 'high';
+}
+
+/** 情感状态检测结果 */
+interface EmotionState {
+  emotion: 'anxious' | 'hopeful' | 'confused' | 'determined' | 'neutral';
+  intensity: number;
+  supportNeeded: string;
+}
+
+/** 用户经验水平 */
+interface UserExperienceLevel {
+  level: 'beginner' | 'intermediate' | 'advanced';
+  familiarity: number;
+  terminologyTolerance: number;
+}
+
+/** 问题分析完整结果 */
+export interface QuestionAnalysis {
+  types: QuestionType;
+  complexity: ComplexityLevel;
+  emotion: EmotionState;
+  userExperience: UserExperienceLevel;
+}
 
 /**
  * 检测问题类型
@@ -185,7 +239,7 @@ export function detectEmotionalState(question: string): EmotionState {
 /**
  * 评估用户经验水平
  */
-export function evaluateUserExperienceLevel(question: string): UserExperienceLevel {
+function evaluateUserExperienceLevel(question: string): UserExperienceLevel {
   // 基于问题内容评估经验水平
   const beginnerKeywords = /简单|基础|入门|新手|第一次|刚开始|不懂|不会|不知道|请教|学习|了解|解释|说明|什么是|怎么用|如何做/i;
   
@@ -229,29 +283,3 @@ export function analyzeQuestion(question: string): QuestionAnalysis {
   };
 }
 
-/**
- * 生成问题分析文本
- */
-export function generateQuestionAnalysisText(types: QuestionType): string {
-  const analysisParts: string[] = [];
-
-  if (types.isQuestion) analysisParts.push('- **问题类型**：判断类问题，需要基于占卜结果给出明确的是/否或能/不能的回答');
-  if (types.isChoice) analysisParts.push('- **问题类型**：选择类问题，需要分析不同选项的占卜支持度');
-  if (types.isTime) analysisParts.push('- **问题类型**：时间类问题，需要结合占卜变化给出时间指引');
-  if (types.isAction) analysisParts.push('- **问题类型**：行动类问题，需要提供具体的执行策略');
-  if (types.isFeasibility) analysisParts.push('- **问题类型**：可行性类问题，需要评估方案的成功概率');
-  if (types.isRelationship) analysisParts.push('- **问题类型**：感情类问题，需要关注情感层面的深层指引');
-  if (types.isCareer) analysisParts.push('- **问题类型**：事业类问题，需要分析工作发展的机遇与挑战');
-  if (types.isFinance) analysisParts.push('- **问题类型**：财运类问题，需要关注财富流动和投资机会');
-  if (types.isHealth) analysisParts.push('- **问题类型**：健康类问题，需要重点关注身体状况和康复建议');
-  if (types.isStudy) analysisParts.push('- **问题类型**：学业类问题，需要分析学习进度和考试运势');
-  if (types.isReason) analysisParts.push('- **问题类型**：原因类问题，需要深入分析问题产生的根源');
-  if (types.isPrediction) analysisParts.push('- **问题类型**：预测类问题，需要基于占卜预示未来发展趋势');
-  if (types.isAdvice) analysisParts.push('- **问题类型**：建议类问题，需要提供针对性的指导和建议');
-  if (types.isComparison) analysisParts.push('- **问题类型**：比较类问题，需要对比分析不同选项的优劣');
-  if (types.isQuantity) analysisParts.push('- **问题类型**：数量类问题，需要评估程度和数量关系');
-  if (types.isLocation) analysisParts.push('- **问题类型**：地点类问题，需要分析方位和地点的影响');
-  if (types.isPerson) analysisParts.push('- **问题类型**：人物类问题，需要关注人际关系和人物特征');
-
-  return analysisParts.join('\n');
-}

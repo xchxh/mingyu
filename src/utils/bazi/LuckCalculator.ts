@@ -1,23 +1,24 @@
-import { SolarTime, Gender, ChildLimit } from 'tyme4ts'
+import { SolarTime, ChildLimit } from 'tyme4ts'
 import { BASIC_MAPPINGS } from './baziDefinitions'
 import { getTenGod, getTenGodForBranch } from './baziUtils'
-import type { LuckInfo, LuckCycle, LiunianInfo, SolarDateTimeInfo } from './baziTypes'
+import type { LuckInfo, LuckCycle, LiunianInfo, SolarDateTimeInfo, XiaoyunInfo } from './baziTypes'
 import { formatSolarDateTime, shiftSolarDateTimeYears, toSolarDateTimeInfo } from './luckTiming'
 
 type SolarTimeInstance = ReturnType<typeof SolarTime.fromYmdHms>
 type LuckGender = Parameters<typeof ChildLimit.fromSolarTime>[1]
+type FortuneInstance = ReturnType<ReturnType<typeof ChildLimit.fromSolarTime>['getStartFortune']>
 
 /**
  * 专注于大运、小运、流年等运势计算的工具类
  *
- * 2023-12-02 更新：利用 tyme4ts 提供的 ChildLimit(童限)、DecadeFortune(大运) 类，
- * 并手动实现小运逻辑（tyme4ts未导出XiaoYun类），以获得精确的起运时间和运程排布。
+ * 基于 tyme4ts 提供的 ChildLimit / DecadeFortune / Fortune 结果，
+ * 统一生成起运时间、大运排布与逐年小运，避免手推公式与官方实现偏离。
  */
 export class LuckCalculator {
   /**
    * 主计算函数：计算大运、小运和所有关联的流年信息
    */
-  public calculateLuckInfo(solarTime: SolarTimeInstance, gender: LuckGender, hourGanZhi: string, yearGan: string, dayMaster: string): LuckInfo {
+  public calculateLuckInfo(solarTime: SolarTimeInstance, gender: LuckGender, dayMaster: string): LuckInfo {
     try {
       // 1. 计算童限 (起运前)
       const childLimit = ChildLimit.fromSolarTime(solarTime, gender)
@@ -33,6 +34,7 @@ export class LuckCalculator {
       const firstCycleStartTime = toSolarDateTimeInfo(limitSolarTime)
 
       const startInfoText = this.getStartInfoText(startAge, startMonth, startDay, startHour, startMinute)
+      const startFortune = childLimit.getStartFortune()
 
       // 2. 获取大运列表 (DecadeFortune)
       // tyme4ts 的 ChildLimit 提供了获取第一步大运的方法 getStartDecadeFortune()
@@ -49,28 +51,14 @@ export class LuckCalculator {
       const cycles: LuckCycle[] = []
       const birthYear = solarTime.getYear()
 
-      // 3. 计算童限/小运 (起运前)
-      // 手动计算小运：以时柱为基准
-      // 阳男阴女顺推，阴男阳女逆推
-      const sixtyCycle = BASIC_MAPPINGS.SIXTY_CYCLE
-      const hourIndex = sixtyCycle.indexOf(hourGanZhi)
-
-      // 判断年干阴阳
-      const yearGanIndex = (BASIC_MAPPINGS.HEAVENLY_STEMS as readonly string[]).indexOf(yearGan)
-      const isYangYear = yearGanIndex % 2 === 0
-      const isMale = gender === Gender.MAN
-      // 小运顺逆规则与大运相同：阳男阴女顺，阴男阳女逆
-      const isForward = (isYangYear && isMale) || (!isYangYear && !isMale)
-
-      // 处理起运前的小运
+      // 3. 处理起运前的童限年份
       if (startAge >= 1 || this.shouldIncludeBoundaryYear(firstCycleStartTime)) {
         const preDayunYears = this.calculateLiunianForCycle(
           birthYear,
           birthYear,
-          isForward,
-          hourIndex,
           dayMaster,
-          firstCycleStartTime
+          firstCycleStartTime,
+          startFortune
         )
 
         if (preDayunYears.length > 0) {
@@ -116,13 +104,13 @@ export class LuckCalculator {
           cycle.years = this.calculateLiunianForCycle(
             cycle.year, // 大运开始年份
             birthYear,
-            isForward,
-            hourIndex,
             dayMaster,
-            cycle.endSolarTime
+            cycle.endSolarTime,
+            startFortune
           )
         }
       })
+      this.attachResolvedYears(cycles)
 
       const handoverInfoText = this.getHandoverInfo(firstCycleStartTime)
 
@@ -142,13 +130,11 @@ export class LuckCalculator {
   private calculateLiunianForCycle(
     startYear: number,
     birthYear: number,
-    isForward: boolean,
-    hourIndex: number,
     dayMaster: string,
-    cycleEndTime?: SolarDateTimeInfo
+    cycleEndTime?: SolarDateTimeInfo,
+    startFortune?: FortuneInstance
   ): LiunianInfo[] {
     const liunianList: LiunianInfo[] = []
-    const sixtyCycle = BASIC_MAPPINGS.SIXTY_CYCLE
     const yearCount = cycleEndTime
       ? this.getCycleCalendarYearCount(startYear, cycleEndTime)
       : 10
@@ -156,18 +142,10 @@ export class LuckCalculator {
     for (let i = 0; i < yearCount; i++) {
       const currentYear = startYear + i
       const age = currentYear - birthYear + 1
-
-      // 计算小运
-      let xiaoyunIndex
-      if (isForward) {
-        xiaoyunIndex = (hourIndex + age) % 60
-      } else {
-        xiaoyunIndex = (hourIndex - age) % 60
-        if (xiaoyunIndex < 0) xiaoyunIndex += 60
-      }
-      const xiaoyunGanZhi = sixtyCycle[xiaoyunIndex]
-
       const liunian = this.calculateLiunian(currentYear, dayMaster)
+      const xiaoyun = startFortune
+        ? this.getXiaoyunForAge(startFortune, age, dayMaster)
+        : undefined
 
       liunianList.push({
         year: currentYear,
@@ -175,14 +153,32 @@ export class LuckCalculator {
         ganZhi: liunian.ganZhi,
         tenGod: liunian.tenGod,
         tenGodZhi: liunian.tenGodZhi,
-        xiaoyun: {
-          ganZhi: xiaoyunGanZhi,
-          tenGod: getTenGod(xiaoyunGanZhi[0], dayMaster),
-          tenGodZhi: getTenGodForBranch(xiaoyunGanZhi[1], dayMaster)
-        }
+        xiaoyun
       })
     }
     return liunianList
+  }
+
+  private getXiaoyunForAge(startFortune: FortuneInstance, age: number, dayMaster: string): XiaoyunInfo {
+    const fortune = startFortune.next(age - startFortune.getAge())
+    const ganZhi = fortune.getName()
+
+    return {
+      ganZhi,
+      tenGod: getTenGod(ganZhi[0], dayMaster),
+      tenGodZhi: getTenGodForBranch(ganZhi[1], dayMaster)
+    }
+  }
+
+  private attachResolvedYears(cycles: LuckCycle[]) {
+    cycles.forEach((cycle, index) => {
+      const nextCycle = cycles[index + 1]
+      const nextStartYear = nextCycle?.year
+
+      cycle.resolvedYears = typeof nextStartYear === 'number'
+        ? cycle.years.filter(item => item.year < nextStartYear)
+        : [...cycle.years]
+    })
   }
 
   /**

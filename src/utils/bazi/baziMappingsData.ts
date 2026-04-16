@@ -109,3 +109,53 @@ export const TWELVE_STAGES_MAP: Record<string, Record<string, string>> = {
   '壬': { '申': '长生', '酉': '沐浴', '戌': '冠带', '亥': '临官', '子': '帝旺', '丑': '衰', '寅': '病', '卯': '死', '辰': '墓', '巳': '绝', '午': '胎', '未': '养' },
   '癸': { '卯': '长生', '寅': '沐浴', '丑': '冠带', '子': '临官', '亥': '帝旺', '戌': '衰', '酉': '病', '申': '死', '未': '墓', '午': '绝', '巳': '胎', '辰': '养' }
 }
+
+/**
+ * 建禄格精确映射：日干在月支为临官禄位
+ * 甲禄在寅、乙禄在卯、丙禄在巳、丁禄在午、戊禄在巳、己禄在午、庚禄在申、辛禄在酉、壬禄在亥、癸禄在子
+ */
+export const LU_BRANCH_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(TWELVE_STAGES_MAP).map(([stem, stages]) => {
+    const luBranch = Object.entries(stages).find(([, stage]) => stage === '临官')
+    return [stem, luBranch ? luBranch[0] : '']
+  })
+)
+
+/**
+ * 月刃格精确映射：阳干在月支为帝旺羊刃位
+ * 甲刃在卯、丙戊刃在午、庚刃在酉、壬刃在子（阴干无真正羊刃）
+ */
+export const REN_BRANCH_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(TWELVE_STAGES_MAP)
+    .filter(([stem]) => ['甲', '丙', '戊', '庚', '壬'].includes(stem))
+    .map(([stem, stages]) => {
+      const renBranch = Object.entries(stages).find(([, stage]) => stage === '帝旺')
+      return [stem, renBranch ? renBranch[0] : '']
+    })
+)
+
+/**
+ * 三合局定义（按局名→三支列表格式）
+ * 与 BASIC_MAPPINGS.DI_ZHI_SAN_HE 互补：那边是每支→另两支，这边是局名→三支
+ */
+export const SAN_HE_MAP: Record<string, string[]> = {
+  '申子辰': ['申', '子', '辰'],  // 水局
+  '亥卯未': ['亥', '卯', '未'],  // 木局
+  '寅午戌': ['寅', '午', '戌'],  // 火局
+  '巳酉丑': ['巳', '酉', '丑'],  // 金局
+}
+
+/**
+ * 三会局定义（与 BASIC_MAPPINGS.DI_ZHI_SAN_HUI 数据一致，独立导出便于直接引用）
+ */
+export const SAN_HUI_MAP: Record<string, string[]> = {
+  '寅卯辰': ['寅', '卯', '辰'],  // 木局
+  '巳午未': ['巳', '午', '未'],  // 火局
+  '申酉戌': ['申', '酉', '戌'],  // 金局
+  '亥子丑': ['亥', '子', '丑'],  // 水局
+}
+
+/**
+ * 辰戌丑未四库全
+ */
+export const SI_KU = ['辰', '戌', '丑', '未']

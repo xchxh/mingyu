@@ -431,8 +431,5 @@ private static calculateHourIndex(currentHour: number): number {
 }
 
 // 导出便捷函数
-export const getCurrentGanZhi = () => LunarUtil.getGanZhi();
-export const getCurrentLunar = () => LunarUtil.getLunar();
-export const getCurrentTimeInfo = () => LunarUtil.getCurrentTimeInfo();
 export const getVoidBranches = (dayGanZhi: string) => LunarUtil.getVoidBranches(dayGanZhi);
 export const getSixAnimals = (dayGan: string) => LunarUtil.getSixAnimals(dayGan);

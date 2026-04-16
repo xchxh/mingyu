@@ -3,14 +3,13 @@ import type { BaziChartResult } from '@/utils/bazi/baziTypes';
 import type { Person } from '@/composables/useFormState';
 import type { ChartInput } from '@/types/chart';
 import type { AnalysisPayloadV1, ScopeType } from '@/types/analysis';
-import type { AiReportContext } from '@/types/ai';
 import {
   buildAstrolabeFromInput,
   buildHoroscope,
   getDefaultHoroscopeContext,
 } from '@/lib/iztro/runtime-helpers';
 import { buildAnalysisPayloadV1 } from '@/lib/iztro/build-analysis-payload';
-import { buildPortablePromptPack } from '@/lib/ziwei-prompts';
+import { buildPortablePromptPack, type PromptContext } from '@/lib/ziwei-prompts';
 import {
   ZIWEI_ANALYSIS_REQUIREMENT,
   ZIWEI_ANALYST_ROLE,
@@ -170,10 +169,10 @@ export function buildZiweiChartInput(input: {
   };
 }
 
-export function createZiweiReportContext(
+function createZiweiReportContext(
   payload: AnalysisPayloadV1,
   topic: string,
-): AiReportContext {
+): PromptContext {
   const topicMap: Record<
     string,
     { report_type: string; report_title: string; selected_topic: string }
@@ -240,13 +239,15 @@ export function buildCombinedZiweiPrompt(
     '【要求】',
     `- ${ZIWEI_ANALYSIS_REQUIREMENT}`,
     '- 先给结论，再展开最关键的 2 到 4 个重点。',
-    '- 每个重点都要写明盘面依据与建议。',
+    '- 每个重点都要写明盘面依据、触发机制与建议。',
+    '- 优先说明宫位主线、四化命中、格局线索、自化迹象和三方四正呼应。',
+    '- 不要整段复述原始盘面信息。',
     '',
     `【当前时间】\n${new Date().toLocaleString('zh-CN')}`,
     pack,
     `【问题】\n${question.trim() || '请先做整体解读。'}`,
-    '【任务】\n结合盘面结构与当前运限，给出核心判断、关键依据和建议。',
-    '【输出要求】\n先给结论，再展开最关键的 2 到 4 个重点；每个重点都要写明盘面依据与建议。',
+    '【任务】\n结合盘面结构与当前运限，优先从宫位主线、四化触发、格局线索、自化与三方四正呼应中提炼核心判断、关键依据和建议。',
+    '【输出要求】\n先给结论，再展开最关键的 2 到 4 个重点；每个重点都要写明盘面依据、触发机制与建议。',
   ].join('\n');
 }
 
@@ -272,7 +273,8 @@ export function buildCombinedZiweiCompatibilityPrompt(params: {
     '【要求】',
     '- 只基于提供的双方盘面和问题作答。',
     '- 先判断关系主基调，再展开 2 到 4 个关键点。',
-    '- 重点说明关系模式、互补点、冲突点、推进节奏与建议。',
+    '- 重点说明关系模式、互补点、冲突点、四化牵动、推进节奏与建议。',
+    '- 不要整段复述双方原始盘面信息。',
     '',
     `【当前时间】\n${new Date().toLocaleString('zh-CN')}`,
     '【第一人盘面】',
@@ -282,7 +284,7 @@ export function buildCombinedZiweiCompatibilityPrompt(params: {
     partnerPack,
     '',
     `【问题】\n${params.question.trim() || '请先从整体关系匹配度和相处建议开始分析。'}`,
-    '【任务】\n请综合双方盘面，重点分析关系模式、互补点、冲突点、长期走向与相处建议。',
-    '【输出要求】\n先给关系结论，再展开最关键的 2 到 4 个重点；每个重点都要写明盘面依据与建议。',
+    '【任务】\n请综合双方盘面，重点分析关系模式、互补点、冲突点、四化牵动、长期走向与相处建议。',
+    '【输出要求】\n先给关系结论，再展开最关键的 2 到 4 个重点；每个重点都要写明盘面依据、触发机制与建议。',
   ].join('\n');
 }

@@ -17,7 +17,7 @@ type HistoryTab = 'personal' | 'compatibility' | 'divination';
 export function AIPanel() {
     const [settings, updateSettings] = useAISettings();
     const [activeTab, setActiveTab] = useState<HistoryTab>('personal');
-    const [models, setModels] = useState<{ id: string }[]>([]);
+    const [models, setModels] = useState<string[]>([]);
     const [isFetchingModels, setIsFetchingModels] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
 
@@ -247,11 +247,11 @@ export function AIPanel() {
                                 >
                                     <option value="">请先获取并选择模型...</option>
                                     {models.map((m) => (
-                                        <option key={m.id} value={m.id}>
-                                            {m.id}
+                                        <option key={m} value={m}>
+                                            {m}
                                         </option>
                                     ))}
-                                    {settings.modelId && !models.find((m) => m.id === settings.modelId) && (
+                                    {settings.modelId && !models.includes(settings.modelId) && (
                                         <option value={settings.modelId}>{settings.modelId}</option>
                                     )}
                                 </select>

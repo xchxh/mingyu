@@ -15,7 +15,7 @@ import { buildPromptFromConfig, getCompatibilityPrompt } from '@/utils/ai/aiProm
 type HistoryTab = 'personal' | 'compatibility' | 'divination';
 
 export function AIPanel() {
-    const { settings, updateSettings } = useAISettings();
+    const [settings, updateSettings] = useAISettings();
     const [activeTab, setActiveTab] = useState<HistoryTab>('personal');
     const [models, setModels] = useState<{ id: string }[]>([]);
     const [isFetchingModels, setIsFetchingModels] = useState(false);

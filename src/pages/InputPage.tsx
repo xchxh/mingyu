@@ -58,11 +58,16 @@ function getPersonValue(form: QueryInputState, role: PersonRole, key: keyof type
 }
 
 type BirthPlaceCascadeModule = typeof import('@/utils/core/birthPlaceCascade');
-type InputEntryMode = 'single' | 'compatibility' | 'divination';
+type InputEntryMode = 'single' | 'compatibility' | 'divination' | 'ai';
 
 const LazyDivinationPanel = lazy(async () => {
   const module = await import('@/components/DivinationPanel');
   return { default: module.DivinationPanel };
+});
+
+const LazyAIPanel = lazy(async () => {
+  const module = await import('@/components/AIPanel');
+  return { default: module.AIPanel };
 });
 
 export function InputPage() {
@@ -126,9 +131,9 @@ export function InputPage() {
       current.analysisMode === nextEntryMode
         ? current
         : {
-            ...current,
-            analysisMode: nextEntryMode,
-          },
+          ...current,
+          analysisMode: nextEntryMode,
+        },
     );
   }, [searchParams]);
 
@@ -474,7 +479,7 @@ export function InputPage() {
   function updateEntryMode(value: InputEntryMode) {
     setEntryMode(value);
 
-    if (value !== 'divination') {
+    if (value !== 'divination' && value !== 'ai') {
       updateField('analysisMode', value);
     }
 
@@ -487,8 +492,8 @@ export function InputPage() {
     const birthTimeValue =
       getPersonValue(form, role, 'birthHour') !== '' && getPersonValue(form, role, 'birthMinute') !== ''
         ? `${String(getPersonValue(form, role, 'birthHour')).padStart(2, '0')}:${String(
-            getPersonValue(form, role, 'birthMinute'),
-          ).padStart(2, '0')}`
+          getPersonValue(form, role, 'birthMinute'),
+        ).padStart(2, '0')}`
         : '';
     const isLunar = getPersonValue(form, role, 'dateType') === 'lunar';
     const useTrueSolarTime = Boolean(getPersonValue(form, role, 'useTrueSolarTime'));
@@ -687,9 +692,8 @@ export function InputPage() {
     );
   }
 
-  const draftSummary = `${provinceOptions.find((item) => item.id === draftProvinceId)?.label || '未选择省份'} / ${
-    cityOptions.find((item) => item.id === draftCityId)?.label || '未选择城市'
-  } / ${districtOptions.find((item) => item.id === draftDistrictId)?.label || '未选择区县'}`;
+  const draftSummary = `${provinceOptions.find((item) => item.id === draftProvinceId)?.label || '未选择省份'} / ${cityOptions.find((item) => item.id === draftCityId)?.label || '未选择城市'
+    } / ${districtOptions.find((item) => item.id === draftDistrictId)?.label || '未选择区县'}`;
 
   const divinationPanelFallback = (
     <div className="divination-panel-shell input-mode-loading" aria-hidden="true">
@@ -732,6 +736,7 @@ export function InputPage() {
                 { label: '个人', value: 'single' as const },
                 { label: '合盘', value: 'compatibility' as const },
                 { label: '占卜', value: 'divination' as const },
+                { label: 'AI模块', value: 'ai' as const },
               ]}
               onChange={updateEntryMode}
             />
@@ -739,7 +744,11 @@ export function InputPage() {
         </div>
 
         <div className="analysis-view">
-          {entryMode === 'divination' ? (
+          {entryMode === 'ai' ? (
+            <Suspense fallback={divinationPanelFallback}>
+              <LazyAIPanel />
+            </Suspense>
+          ) : entryMode === 'divination' ? (
             <Suspense fallback={divinationPanelFallback}>
               <LazyDivinationPanel />
             </Suspense>

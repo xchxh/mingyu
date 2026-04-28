@@ -1,5 +1,7 @@
 import { Suspense, lazy, memo, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { fetchAvailableModels, streamChatCompletion } from '@/lib/ai-service';
+import { useAISettings } from '@/hooks/useAISettings';
 import {
   calculateFullBaziChart,
   calculateFullZiweiChart,
@@ -71,62 +73,62 @@ const commonQuestionInspirations: Array<{
   category: Exclude<InspirationCategory, '全部'>;
   question: string;
 }> = [
-  { category: '事业', question: '我更适合走稳定上班路线，还是尝试主动开拓发展？' },
-  { category: '事业', question: '我在工作中更适合做执行、管理、专业技术，还是资源整合？' },
-  { category: '事业', question: '我现在的事业卡点主要出在能力、人际还是选择方向？' },
-  { category: '事业', question: '如果想换工作，我更该优先看平台、收入还是成长空间？' },
-  { category: '事业', question: '我适不适合创业，还是更适合在体系内发展？' },
-  { category: '事业', question: '我更适合留在熟悉领域深耕，还是切换到新方向？' },
-  { category: '事业', question: '我在职场里最容易被看到的优势是什么？' },
-  { category: '事业', question: '我在工作合作中更适合主导还是辅助？' },
-  { category: '事业', question: '如果想提升事业发展，我最该先补哪一项能力？' },
-  { category: '事业', question: '我的事业压力更多来自外部环境还是自己选择？' },
-  { category: '财运', question: '我的财运更偏正财还是偏财？' },
-  { category: '财运', question: '我更适合靠工资积累，还是靠副业、项目、经营来赚钱？' },
-  { category: '财运', question: '我在财务上最容易踩的坑是什么？' },
-  { category: '财运', question: '我更适合求稳理财，还是适度冒险争取更大收益？' },
-  { category: '财运', question: '我的财富积累重点更在开源还是守财？' },
-  { category: '财运', question: '我赚钱时更该依赖专业能力还是资源整合能力？' },
-  { category: '财运', question: '我在金钱决策上更容易冲动还是保守？' },
-  { category: '财运', question: '我是否容易出现赚得快但留不住的情况？' },
-  { category: '财运', question: '我适不适合和别人一起做生意或投资？' },
-  { category: '财运', question: '如果要改善财务状态，我最该先管住哪一块？' },
-  { category: '婚恋', question: '我的感情模式更容易主动、被动，还是反复拉扯？' },
-  { category: '婚恋', question: '我适合什么类型的伴侣？' },
-  { category: '婚恋', question: '我在亲密关系里最需要调整的地方是什么？' },
-  { category: '婚恋', question: '我感情不顺更容易出在选择对象还是相处方式？' },
-  { category: '婚恋', question: '如果进入长期关系，我最需要注意什么问题？' },
-  { category: '婚恋', question: '我在感情里更容易付出过多还是防备过重？' },
-  { category: '婚恋', question: '我更适合慢热稳定型关系，还是强吸引型关系？' },
-  { category: '婚恋', question: '我在关系中最容易触发的矛盾点是什么？' },
-  { category: '婚恋', question: '我该怎么判断一段关系值不值得继续投入？' },
-  { category: '婚恋', question: '我的婚恋重点更在遇到合适的人，还是学会正确相处？' },
-  { category: '子女', question: '我的子女缘分深不深？' },
-  { category: '子女', question: '我在亲子关系里更适合温和引导还是严格管理？' },
-  { category: '子女', question: '我未来与子女的互动重点会体现在哪些方面？' },
-  { category: '子女', question: '在子女教育上，我最需要避免什么做法？' },
-  { category: '子女', question: '我与子女的关系更容易亲近还是有距离感？' },
-  { category: '子女', question: '我在对子女的期待上会不会给自己太大压力？' },
-  { category: '子女', question: '面对子女问题，我更该重视沟通还是规则建立？' },
-  { category: '子女', question: '我的亲子关系中最需要注意的情绪模式是什么？' },
-  { category: '六亲', question: '我和父母之间的关系重点与压力点是什么？' },
-  { category: '六亲', question: '我和兄弟姐妹之间更容易互助还是有隐性消耗？' },
-  { category: '六亲', question: '我在家庭关系中更容易承担责任，还是容易被关系拖累？' },
-  { category: '六亲', question: '面对家人问题，我更适合主动介入还是保持边界？' },
-  { category: '六亲', question: '我在家庭里更像支持者、协调者，还是承压者？' },
-  { category: '六亲', question: '我与家人之间最需要厘清的边界问题是什么？' },
-  { category: '六亲', question: '我在家庭责任分配上是否容易失衡？' },
-  { category: '六亲', question: '我和原生家庭的影响更偏助力还是牵制？' },
-  { category: '六亲', question: '我应该怎样处理亲情中的愧疚感和责任感？' },
-  { category: '健康', question: '我的身体最需要注意哪些方面？' },
-  { category: '健康', question: '我当前更容易出现情绪压力，还是身体透支问题？' },
-  { category: '健康', question: '我的作息、饮食、运动里最该先调整哪一项？' },
-  { category: '健康', question: '我在健康管理上最容易忽视的隐患是什么？' },
-  { category: '健康', question: '我更需要注意慢性消耗，还是突然性的身体失衡？' },
-  { category: '健康', question: '我的健康问题更容易和情绪、压力有关吗？' },
-  { category: '健康', question: '如果只调整一个生活习惯，最该先改什么？' },
-  { category: '健康', question: '我在休息和恢复方面最容易出现什么问题？' },
-];
+    { category: '事业', question: '我更适合走稳定上班路线，还是尝试主动开拓发展？' },
+    { category: '事业', question: '我在工作中更适合做执行、管理、专业技术，还是资源整合？' },
+    { category: '事业', question: '我现在的事业卡点主要出在能力、人际还是选择方向？' },
+    { category: '事业', question: '如果想换工作，我更该优先看平台、收入还是成长空间？' },
+    { category: '事业', question: '我适不适合创业，还是更适合在体系内发展？' },
+    { category: '事业', question: '我更适合留在熟悉领域深耕，还是切换到新方向？' },
+    { category: '事业', question: '我在职场里最容易被看到的优势是什么？' },
+    { category: '事业', question: '我在工作合作中更适合主导还是辅助？' },
+    { category: '事业', question: '如果想提升事业发展，我最该先补哪一项能力？' },
+    { category: '事业', question: '我的事业压力更多来自外部环境还是自己选择？' },
+    { category: '财运', question: '我的财运更偏正财还是偏财？' },
+    { category: '财运', question: '我更适合靠工资积累，还是靠副业、项目、经营来赚钱？' },
+    { category: '财运', question: '我在财务上最容易踩的坑是什么？' },
+    { category: '财运', question: '我更适合求稳理财，还是适度冒险争取更大收益？' },
+    { category: '财运', question: '我的财富积累重点更在开源还是守财？' },
+    { category: '财运', question: '我赚钱时更该依赖专业能力还是资源整合能力？' },
+    { category: '财运', question: '我在金钱决策上更容易冲动还是保守？' },
+    { category: '财运', question: '我是否容易出现赚得快但留不住的情况？' },
+    { category: '财运', question: '我适不适合和别人一起做生意或投资？' },
+    { category: '财运', question: '如果要改善财务状态，我最该先管住哪一块？' },
+    { category: '婚恋', question: '我的感情模式更容易主动、被动，还是反复拉扯？' },
+    { category: '婚恋', question: '我适合什么类型的伴侣？' },
+    { category: '婚恋', question: '我在亲密关系里最需要调整的地方是什么？' },
+    { category: '婚恋', question: '我感情不顺更容易出在选择对象还是相处方式？' },
+    { category: '婚恋', question: '如果进入长期关系，我最需要注意什么问题？' },
+    { category: '婚恋', question: '我在感情里更容易付出过多还是防备过重？' },
+    { category: '婚恋', question: '我更适合慢热稳定型关系，还是强吸引型关系？' },
+    { category: '婚恋', question: '我在关系中最容易触发的矛盾点是什么？' },
+    { category: '婚恋', question: '我该怎么判断一段关系值不值得继续投入？' },
+    { category: '婚恋', question: '我的婚恋重点更在遇到合适的人，还是学会正确相处？' },
+    { category: '子女', question: '我的子女缘分深不深？' },
+    { category: '子女', question: '我在亲子关系里更适合温和引导还是严格管理？' },
+    { category: '子女', question: '我未来与子女的互动重点会体现在哪些方面？' },
+    { category: '子女', question: '在子女教育上，我最需要避免什么做法？' },
+    { category: '子女', question: '我与子女的关系更容易亲近还是有距离感？' },
+    { category: '子女', question: '我在对子女的期待上会不会给自己太大压力？' },
+    { category: '子女', question: '面对子女问题，我更该重视沟通还是规则建立？' },
+    { category: '子女', question: '我的亲子关系中最需要注意的情绪模式是什么？' },
+    { category: '六亲', question: '我和父母之间的关系重点与压力点是什么？' },
+    { category: '六亲', question: '我和兄弟姐妹之间更容易互助还是有隐性消耗？' },
+    { category: '六亲', question: '我在家庭关系中更容易承担责任，还是容易被关系拖累？' },
+    { category: '六亲', question: '面对家人问题，我更适合主动介入还是保持边界？' },
+    { category: '六亲', question: '我在家庭里更像支持者、协调者，还是承压者？' },
+    { category: '六亲', question: '我与家人之间最需要厘清的边界问题是什么？' },
+    { category: '六亲', question: '我在家庭责任分配上是否容易失衡？' },
+    { category: '六亲', question: '我和原生家庭的影响更偏助力还是牵制？' },
+    { category: '六亲', question: '我应该怎样处理亲情中的愧疚感和责任感？' },
+    { category: '健康', question: '我的身体最需要注意哪些方面？' },
+    { category: '健康', question: '我当前更容易出现情绪压力，还是身体透支问题？' },
+    { category: '健康', question: '我的作息、饮食、运动里最该先调整哪一项？' },
+    { category: '健康', question: '我在健康管理上最容易忽视的隐患是什么？' },
+    { category: '健康', question: '我更需要注意慢性消耗，还是突然性的身体失衡？' },
+    { category: '健康', question: '我的健康问题更容易和情绪、压力有关吗？' },
+    { category: '健康', question: '如果只调整一个生活习惯，最该先改什么？' },
+    { category: '健康', question: '我在休息和恢复方面最容易出现什么问题？' },
+  ];
 
 const baziSingleShortcutActions = [
   {
@@ -601,9 +603,8 @@ function ChartStar(props: {
 
   return (
     <span
-      className={`chart-star chart-star-${tone} ${
-        star.birth_mutagen ? 'has-birth-mutagen' : ''
-      } ${star.active_scope_mutagen ? 'has-active-mutagen' : ''}`}
+      className={`chart-star chart-star-${tone} ${star.birth_mutagen ? 'has-birth-mutagen' : ''
+        } ${star.active_scope_mutagen ? 'has-active-mutagen' : ''}`}
     >
       <span className="chart-star-name">{star.name}</span>
       {star.birth_mutagen ? (
@@ -771,11 +772,9 @@ function ZiweiTraditionalBoard(props: {
               <button
                 type="button"
                 key={palace.index}
-                className={`ziwei-grid-cell chart-cell ${isActive ? 'is-active' : ''} ${
-                  palace.is_body_palace ? 'is-body-palace' : ''
-                } ${isOpposite ? 'is-opposite is-relation-opposite' : ''} ${
-                  isSurrounded ? 'is-surrounded is-relation-surrounded' : ''
-                }`}
+                className={`ziwei-grid-cell chart-cell ${isActive ? 'is-active' : ''} ${palace.is_body_palace ? 'is-body-palace' : ''
+                  } ${isOpposite ? 'is-opposite is-relation-opposite' : ''} ${isSurrounded ? 'is-surrounded is-relation-surrounded' : ''
+                  }`}
                 onClick={() => onSelectPalace(palace.index)}
               >
                 <div className="ziwei-grid-cell-corner chart-cell-corner chart-cell-corner-left">
@@ -1041,10 +1040,10 @@ function ZiweiScopeModal(props: {
       hourIndex: defaultContext.hourIndex,
       selectedDecadal: selectedDecadal
         ? {
-            startAge: selectedDecadal.startAge,
-            endAge: selectedDecadal.endAge,
-            dateStr: selectedDecadal.dateStr,
-          }
+          startAge: selectedDecadal.startAge,
+          endAge: selectedDecadal.endAge,
+          dateStr: selectedDecadal.dateStr,
+        }
         : null,
       selectedYearDateStr: draftYearDateStr,
       selectedMonthDateStr: draftMonthDateStr,
@@ -1212,9 +1211,8 @@ function ZiweiScopeModal(props: {
                 <button
                   type="button"
                   key={`${item.label}-${item.startAge}-${item.endAge}`}
-                  className={`fortune-modal-item ${
-                    isDecadalDetailActive && draftDecadalIndex === index ? 'is-active is-selected' : ''
-                  }`}
+                  className={`fortune-modal-item ${isDecadalDetailActive && draftDecadalIndex === index ? 'is-active is-selected' : ''
+                    }`}
                   onClick={() => {
                     setDraftDecadalIndex(index);
                     setDraftScope('decadal');
@@ -1237,9 +1235,8 @@ function ZiweiScopeModal(props: {
               <div className="fortune-modal-list">
                 <button
                   type="button"
-                  className={`fortune-modal-item fortune-modal-item-overall ${
-                    isYearOverallActive ? 'is-selected is-active' : ''
-                  }`}
+                  className={`fortune-modal-item fortune-modal-item-overall ${isYearOverallActive ? 'is-selected is-active' : ''
+                    }`}
                   onClick={() => setDraftScope('decadal')}
                 >
                   <strong>大限</strong>
@@ -1251,11 +1248,10 @@ function ZiweiScopeModal(props: {
                   <button
                     type="button"
                     key={item.dateStr}
-                    className={`fortune-modal-item ${
-                      isYearDetailActive && draftYearDateStr === item.dateStr
+                    className={`fortune-modal-item ${isYearDetailActive && draftYearDateStr === item.dateStr
                         ? 'is-active is-selected'
                         : ''
-                    }`}
+                      }`}
                     onClick={() => {
                       setDraftYearDateStr(item.dateStr);
                       setDraftMonthDateStr(buildZiweiMonthAnchorDate(item.dateStr));
@@ -1281,9 +1277,8 @@ function ZiweiScopeModal(props: {
               <div className="fortune-modal-list">
                 <button
                   type="button"
-                  className={`fortune-modal-item fortune-modal-item-overall ${
-                    isMonthOverallActive ? 'is-selected is-active' : ''
-                  }`}
+                  className={`fortune-modal-item fortune-modal-item-overall ${isMonthOverallActive ? 'is-selected is-active' : ''
+                    }`}
                   onClick={() => setDraftScope('yearly')}
                 >
                   <strong>流年</strong>
@@ -1293,11 +1288,10 @@ function ZiweiScopeModal(props: {
                   <button
                     type="button"
                     key={item.dateStr}
-                    className={`fortune-modal-item ${
-                      isMonthDetailActive && draftMonthDateStr === item.dateStr
+                    className={`fortune-modal-item ${isMonthDetailActive && draftMonthDateStr === item.dateStr
                         ? 'is-active is-selected'
                         : ''
-                    }`}
+                      }`}
                     onClick={() => {
                       setDraftMonthDateStr(item.dateStr);
                       setDraftDayDateStr(item.dateStr);
@@ -1322,9 +1316,8 @@ function ZiweiScopeModal(props: {
               <div className="fortune-modal-list">
                 <button
                   type="button"
-                  className={`fortune-modal-item fortune-modal-item-overall ${
-                    isDayOverallActive ? 'is-selected is-active' : ''
-                  }`}
+                  className={`fortune-modal-item fortune-modal-item-overall ${isDayOverallActive ? 'is-selected is-active' : ''
+                    }`}
                   onClick={() => setDraftScope('monthly')}
                 >
                   <strong>流月</strong>
@@ -1334,11 +1327,10 @@ function ZiweiScopeModal(props: {
                   <button
                     type="button"
                     key={item.dateStr}
-                    className={`fortune-modal-item ${
-                      isDayDetailActive && draftDayDateStr === item.dateStr
+                    className={`fortune-modal-item ${isDayDetailActive && draftDayDateStr === item.dateStr
                         ? 'is-active is-selected'
                         : ''
-                    }`}
+                      }`}
                     onClick={() => {
                       setDraftDayDateStr(item.dateStr);
                       setDraftScope('daily');
@@ -1510,10 +1502,10 @@ function ZiweiFortuneSelector(props: {
       hourIndex: defaultContext.hourIndex,
       selectedDecadal: selectedDecadal
         ? {
-            startAge: selectedDecadal.startAge,
-            endAge: selectedDecadal.endAge,
-            dateStr: selectedDecadal.dateStr,
-          }
+          startAge: selectedDecadal.startAge,
+          endAge: selectedDecadal.endAge,
+          dateStr: selectedDecadal.dateStr,
+        }
         : null,
       selectedYearDateStr,
       selectedMonthDateStr,
@@ -1805,9 +1797,8 @@ const BaziChartBoard = memo(function BaziChartBoard(props: {
               ...row.values.map((value, index) => (
                 <div
                   key={`${row.label}-${index}`}
-                  className={`bazi-pillars-cell ${row.className ?? ''} ${
-                    index === 2 ? 'is-day-master' : ''
-                  }`}
+                  className={`bazi-pillars-cell ${row.className ?? ''} ${index === 2 ? 'is-day-master' : ''
+                    }`}
                 >
                   {value}
                 </div>
@@ -1817,12 +1808,12 @@ const BaziChartBoard = memo(function BaziChartBoard(props: {
         </div>
 
         <div className="bazi-side-panel">
-            <div className="result-side-card bazi-fortune-card">
-              <div className="result-side-head">
-                <h3>五行分布</h3>
-              </div>
-              <div className="wuxing-bars">
-                {Object.entries(result.wuxingStrength.percentages).map(([key, value]) => (
+          <div className="result-side-card bazi-fortune-card">
+            <div className="result-side-head">
+              <h3>五行分布</h3>
+            </div>
+            <div className="wuxing-bars">
+              {Object.entries(result.wuxingStrength.percentages).map(([key, value]) => (
                 <div className="wuxing-bar-row" key={key}>
                   <span className="wuxing-bar-label">{key}</span>
                   <div className="wuxing-bar-track">
@@ -1967,9 +1958,8 @@ const ThreePillarsBoard = memo(function ThreePillarsBoard(props: {
               ...row.values.map((value, index) => (
                 <div
                   key={`${row.label}-${index}`}
-                  className={`bazi-pillars-cell ${row.className ?? ''} ${
-                    index === 2 ? 'is-day-master' : ''
-                  }`}
+                  className={`bazi-pillars-cell ${row.className ?? ''} ${index === 2 ? 'is-day-master' : ''
+                    }`}
                 >
                   {value}
                 </div>
@@ -2346,6 +2336,13 @@ export function ResultPage() {
     ziwei: promptState.tab === 'ziwei',
     prompt: promptState.tab === 'prompt',
   }));
+
+  const [aiSettings, setAISettings] = useAISettings();
+  const [isAISettingsExpanded, setIsAISettingsExpanded] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [isAIInterpreting, setIsAIInterpreting] = useState(false);
   const primaryHasUnknownTime = !inputState.useTrueSolarTime && isUnknownTimeIndex(inputState.timeIndex);
   const partnerHasUnknownTime =
     inputState.analysisMode === 'compatibility' &&
@@ -3161,10 +3158,10 @@ export function ResultPage() {
     promptState.ziweiScope === 'origin'
       ? '仅使用本命信息'
       : formatZiweiPromptScopeSummary(
-          promptState.ziweiScope,
-          promptState.ziweiScopeDate,
-          promptState.ziweiScopeDate ? currentZiweiPayload?.active_scope.label : undefined,
-        );
+        promptState.ziweiScope,
+        promptState.ziweiScopeDate,
+        promptState.ziweiScopeDate ? currentZiweiPayload?.active_scope.label : undefined,
+      );
   const showShareButton = shouldShowPromptShareButton({
     viewportWidth,
     hasNavigatorShare: typeof navigator !== 'undefined' && typeof navigator.share === 'function',
@@ -3296,6 +3293,47 @@ export function ResultPage() {
       setCopyState('已复制');
     } catch {
       setCopyState('复制失败');
+    }
+  }
+
+  async function handleLoadModels() {
+    if (!aiSettings.baseUrl || !aiSettings.apiKey) {
+      alert('请先填写 Base URL 和 API Key');
+      return;
+    }
+    setIsLoadingModels(true);
+    try {
+      const models = await fetchAvailableModels(aiSettings.baseUrl, aiSettings.apiKey);
+      setAvailableModels(models);
+      if (models.length > 0 && !models.includes(aiSettings.modelId)) {
+        setAISettings({ ...aiSettings, modelId: models[0] });
+      } else if (models.length === 0) {
+        alert('获取模型成功，但未找到可用模型');
+      }
+    } catch (e: any) {
+      alert('获取模型失败:\n' + e.message);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }
+
+  async function handleStartAIInterpretation() {
+    if (!aiSettings.modelId) {
+      alert('请先配置并选择 AI 模型');
+      setIsAISettingsExpanded(true);
+      return;
+    }
+    setIsAIInterpreting(true);
+    setAiResponse('');
+    try {
+      const stream = streamChatCompletion(aiSettings, latestActivePromptText);
+      for await (const chunk of stream) {
+        setAiResponse((prev) => prev + chunk);
+      }
+    } catch (e: any) {
+      alert('AI 解读失败:\n' + (e.message || e));
+    } finally {
+      setIsAIInterpreting(false);
     }
   }
 
@@ -3448,218 +3486,305 @@ export function ResultPage() {
           aria-hidden={promptState.tab !== 'prompt'}
         >
           {mountedTabs.prompt ? (
-          <div className="workspace-grid">
-            <section className="panel">
-              <div className="panel-head">
-                <div>
-                  <h2 className="prompt-settings-title">提示词设置</h2>
-                  <p>选择基于八字或紫微，再用快捷按钮生成问题。</p>
+            <div className="workspace-grid">
+              <section className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h2 className="prompt-settings-title">提示词设置</h2>
+                    <p>选择基于八字或紫微，再用快捷按钮生成问题。</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="field-list">
-                <div className="prompt-compact-grid">
-                  <label className="field-card">
-                    <div className="field-header">
-                      <span className="prompt-source-title">提示词来源</span>
-                    </div>
-                    <select
-                      value={promptState.promptSource}
-                      onChange={(event) =>
-                        updatePromptState({
-                          promptSource: event.target.value as PromptSourceKey,
-                        })
-                      }
-                    >
-                      <option value="bazi">基于八字</option>
-                      <option value="ziwei" disabled={hasUnknownBirthTime}>
-                        {hasUnknownBirthTime ? '基于紫微（未知时辰不可用）' : '基于紫微'}
-                      </option>
-                    </select>
-                  </label>
-
-                  {promptState.promptSource === 'bazi' &&
-                  inputState.analysisMode === 'single' &&
-                  !primaryHasUnknownTime ? (
-                    <div className="field-card">
+                <div className="field-list">
+                  <div className="prompt-compact-grid">
+                    <label className="field-card">
                       <div className="field-header">
-                        <span>年限选择</span>
+                        <span className="prompt-source-title">提示词来源</span>
                       </div>
-                      <button
-                        type="button"
-                        className="place-trigger"
-                        onClick={() => setIsBaziFortuneModalOpen(true)}
+                      <select
+                        value={promptState.promptSource}
+                        onChange={(event) =>
+                          updatePromptState({
+                            promptSource: event.target.value as PromptSourceKey,
+                          })
+                        }
                       >
-                        {isBaziFortuneSummaryLoading ? (
-                          <InlineSkeleton className="inline-skeleton inline-skeleton-medium" />
-                        ) : (
-                          <span>{baziFortuneSummaryText}</span>
-                        )}
-                      </button>
-                    </div>
+                        <option value="bazi">基于八字</option>
+                        <option value="ziwei" disabled={hasUnknownBirthTime}>
+                          {hasUnknownBirthTime ? '基于紫微（未知时辰不可用）' : '基于紫微'}
+                        </option>
+                      </select>
+                    </label>
+
+                    {promptState.promptSource === 'bazi' &&
+                      inputState.analysisMode === 'single' &&
+                      !primaryHasUnknownTime ? (
+                      <div className="field-card">
+                        <div className="field-header">
+                          <span>年限选择</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="place-trigger"
+                          onClick={() => setIsBaziFortuneModalOpen(true)}
+                        >
+                          {isBaziFortuneSummaryLoading ? (
+                            <InlineSkeleton className="inline-skeleton inline-skeleton-medium" />
+                          ) : (
+                            <span>{baziFortuneSummaryText}</span>
+                          )}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {promptState.promptSource === 'ziwei' ? (
+                      <div className="field-card">
+                        <div className="field-header">
+                          <span>年限选择</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="place-trigger"
+                          onClick={() => setIsZiweiScopeModalOpen(true)}
+                          disabled={!primaryZiweiInput || !activeZiweiPayloadByScope}
+                        >
+                          {!primaryZiweiInput || !activeZiweiPayloadByScope ? (
+                            <InlineSkeleton className="inline-skeleton inline-skeleton-medium" />
+                          ) : (
+                            <span>{ziweiScopeSummaryText}</span>
+                          )}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {promptState.promptSource === 'bazi' ? (
+                    <>
+                      <div className="quick-grid">
+                        {getBaziShortcutActions(inputState.analysisMode).map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className={`quick-chip ${activeBaziShortcutMode === item.label
+                                ? 'is-active'
+                                : ''
+                              }`}
+                            onClick={() => applyBaziShortcutMode(item.label)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                        {inputState.analysisMode === 'single' ? (
+                          <>
+                            <button
+                              type="button"
+                              className={`quick-chip ${activeBaziShortcutMode === '自定义' ? 'is-active' : ''}`}
+                              onClick={() => applyBaziShortcutMode('自定义')}
+                            >
+                              自定义
+                            </button>
+                            <button
+                              type="button"
+                              className="quick-chip"
+                              onClick={openQuestionInspirationModal}
+                            >
+                              问题灵感
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+
+                      {inputState.analysisMode === 'single' && activeBaziShortcutMode === '自定义' ? (
+                        <label className="field-card">
+                          <div className="field-header">
+                            <span>自定义问题</span>
+                          </div>
+                          <textarea
+                            rows={6}
+                            value={baziQuestionDraft}
+                            placeholder="例如：我近期适合换工作还是稳住？"
+                            onChange={(event) => setBaziQuestionDraft(event.target.value)}
+                          />
+                        </label>
+                      ) : null}
+                    </>
                   ) : null}
 
                   {promptState.promptSource === 'ziwei' ? (
-                    <div className="field-card">
-                      <div className="field-header">
-                        <span>年限选择</span>
+                    <>
+                      <div className="quick-grid">
+                        {getZiweiShortcutActions(inputState.analysisMode).map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className={`quick-chip ${activeZiweiShortcutMode === item.label
+                                ? 'is-active'
+                                : ''
+                              }`}
+                            onClick={() => applyZiweiShortcutMode(item.label)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                        {inputState.analysisMode === 'single' ? (
+                          <>
+                            <button
+                              type="button"
+                              className={`quick-chip ${activeZiweiShortcutMode === '自定义' ? 'is-active' : ''}`}
+                              onClick={() => applyZiweiShortcutMode('自定义')}
+                            >
+                              自定义
+                            </button>
+                            <button
+                              type="button"
+                              className="quick-chip"
+                              onClick={openQuestionInspirationModal}
+                            >
+                              问题灵感
+                            </button>
+                          </>
+                        ) : null}
                       </div>
-                      <button
-                        type="button"
-                        className="place-trigger"
-                        onClick={() => setIsZiweiScopeModalOpen(true)}
-                        disabled={!primaryZiweiInput || !activeZiweiPayloadByScope}
-                      >
-                        {!primaryZiweiInput || !activeZiweiPayloadByScope ? (
-                          <InlineSkeleton className="inline-skeleton inline-skeleton-medium" />
-                        ) : (
-                          <span>{ziweiScopeSummaryText}</span>
-                        )}
-                      </button>
-                    </div>
+
+                      {inputState.analysisMode === 'single' && activeZiweiShortcutMode === '自定义' ? (
+                        <label className="field-card">
+                          <div className="field-header">
+                            <span>自定义问题</span>
+                          </div>
+                          <textarea
+                            rows={6}
+                            value={ziweiQuestionDraft}
+                            placeholder="例如：请重点分析我这段时间该主动还是先稳住。"
+                            onChange={(event) => setZiweiQuestionDraft(event.target.value)}
+                          />
+                        </label>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
+              </section>
 
-                {promptState.promptSource === 'bazi' ? (
-                  <>
-                    <div className="quick-grid">
-                      {getBaziShortcutActions(inputState.analysisMode).map((item) => (
-                        <button
-                          key={item.label}
-                          type="button"
-                          className={`quick-chip ${
-                            activeBaziShortcutMode === item.label
-                              ? 'is-active'
-                              : ''
-                          }`}
-                          onClick={() => applyBaziShortcutMode(item.label)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                      {inputState.analysisMode === 'single' ? (
-                        <>
-                          <button
-                            type="button"
-                            className={`quick-chip ${activeBaziShortcutMode === '自定义' ? 'is-active' : ''}`}
-                            onClick={() => applyBaziShortcutMode('自定义')}
-                          >
-                            自定义
-                          </button>
-                          <button
-                            type="button"
-                            className="quick-chip"
-                            onClick={openQuestionInspirationModal}
-                          >
-                            问题灵感
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-
-                    {inputState.analysisMode === 'single' && activeBaziShortcutMode === '自定义' ? (
-                      <label className="field-card">
-                        <div className="field-header">
-                          <span>自定义问题</span>
-                        </div>
-                        <textarea
-                          rows={6}
-                          value={baziQuestionDraft}
-                          placeholder="例如：我近期适合换工作还是稳住？"
-                          onChange={(event) => setBaziQuestionDraft(event.target.value)}
-                        />
-                      </label>
-                    ) : null}
-                  </>
-                ) : null}
-
-                {promptState.promptSource === 'ziwei' ? (
-                  <>
-                    <div className="quick-grid">
-                      {getZiweiShortcutActions(inputState.analysisMode).map((item) => (
-                        <button
-                          key={item.label}
-                          type="button"
-                          className={`quick-chip ${
-                            activeZiweiShortcutMode === item.label
-                              ? 'is-active'
-                              : ''
-                          }`}
-                          onClick={() => applyZiweiShortcutMode(item.label)}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                      {inputState.analysisMode === 'single' ? (
-                        <>
-                          <button
-                            type="button"
-                            className={`quick-chip ${activeZiweiShortcutMode === '自定义' ? 'is-active' : ''}`}
-                            onClick={() => applyZiweiShortcutMode('自定义')}
-                          >
-                            自定义
-                          </button>
-                          <button
-                            type="button"
-                            className="quick-chip"
-                            onClick={openQuestionInspirationModal}
-                          >
-                            问题灵感
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-
-                    {inputState.analysisMode === 'single' && activeZiweiShortcutMode === '自定义' ? (
-                      <label className="field-card">
-                        <div className="field-header">
-                          <span>自定义问题</span>
-                        </div>
-                        <textarea
-                          rows={6}
-                          value={ziweiQuestionDraft}
-                          placeholder="例如：请重点分析我这段时间该主动还是先稳住。"
-                          onChange={(event) => setZiweiQuestionDraft(event.target.value)}
-                        />
-                      </label>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="panel panel-output">
-              <div className="panel-head">
-                <div>
-                  <h2>提示词正文</h2>
-                  <p>系统要求和问题正文已合并，复制这一整段提示词即可。</p>
-                </div>
-                <div className="action-row compact-actions">
-                  <button className="copy-button secondary-button" type="button" onClick={handleCopy}>
-                    {copyState}
-                  </button>
-                  {showShareButton ? (
-                    <button className="copy-button" type="button" onClick={handleShare}>
-                      {shareState}
+              <section className="panel panel-output">
+                <div className="panel-head">
+                  <div>
+                    <h2>提示词正文</h2>
+                    <p>系统要求和问题正文已合并，复制这一整段提示词即可。</p>
+                  </div>
+                  <div className="action-row compact-actions">
+                    <button className="copy-button secondary-button" type="button" onClick={handleCopy}>
+                      {copyState}
                     </button>
-                  ) : null}
+                    {showShareButton ? (
+                      <button className="copy-button" type="button" onClick={handleShare}>
+                        {shareState}
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <div className="prompt-send-tip">
-                点击复制后，发送到你常用的在线 AI 软件继续提问。
-              </div>
-              {hasUnknownBirthTime && promptState.promptSource === 'bazi' ? (
                 <div className="prompt-send-tip">
-                  当前存在未知时辰，已自动改为三柱保守提示词，不会假定时柱。
+                  点击复制后，发送到你常用的在线 AI 软件继续提问。
                 </div>
-              ) : null}
-              {previewActivePromptText ? (
-                <pre className="result-pre">{previewActivePromptText}</pre>
-              ) : (
-                <PromptPreSkeleton />
-              )}
-            </section>
-          </div>
+                {hasUnknownBirthTime && promptState.promptSource === 'bazi' ? (
+                  <div className="prompt-send-tip">
+                    当前存在未知时辰，已自动改为三柱保守提示词，不会假定时柱。
+                  </div>
+                ) : null}
+                {previewActivePromptText ? (
+                  <pre className="result-pre">{previewActivePromptText}</pre>
+                ) : (
+                  <PromptPreSkeleton />
+                )}
+              </section>
+
+              <section className="panel panel-output ai-panel">
+                <div className="panel-head">
+                  <div>
+                    <h2>AI 解读</h2>
+                    <p>自动调用配置好的 AI 进行解读，无需离开页面。</p>
+                  </div>
+                  <div className="action-row compact-actions">
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setIsAISettingsExpanded(!isAISettingsExpanded)}
+                    >
+                      {isAISettingsExpanded ? '收起配置' : 'AI 配置'}
+                    </button>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={handleStartAIInterpretation}
+                      disabled={isAIInterpreting || !latestActivePromptText}
+                      style={{ backgroundColor: 'var(--brand-color, #db2777)', color: 'white', border: 'none', padding: '0.3rem 0.8rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {isAIInterpreting ? '解读中...' : '发送至 AI 解读'}
+                    </button>
+                  </div>
+                </div>
+
+                {isAISettingsExpanded && (
+                  <div className="field-list" style={{ marginTop: '1rem', padding: '1rem', borderTop: '1px solid var(--border-color, #eee)' }}>
+                    <label className="field-card">
+                      <div className="field-header">
+                        <span>Base URL</span>
+                      </div>
+                      <input
+                        type="text"
+                        value={aiSettings.baseUrl}
+                        onChange={e => setAISettings({ ...aiSettings, baseUrl: e.target.value })}
+                        placeholder="https://api.openai.com"
+                        style={{ padding: '0.5rem', width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-color, #ccc)', borderRadius: '4px' }}
+                      />
+                    </label>
+                    <label className="field-card">
+                      <div className="field-header">
+                        <span>API Key</span>
+                      </div>
+                      <input
+                        type="password"
+                        value={aiSettings.apiKey}
+                        onChange={e => setAISettings({ ...aiSettings, apiKey: e.target.value })}
+                        placeholder="sk-..."
+                        style={{ padding: '0.5rem', width: '100%', boxSizing: 'border-box', border: '1px solid var(--border-color, #ccc)', borderRadius: '4px' }}
+                      />
+                    </label>
+                    <label className="field-card">
+                      <div className="field-header">
+                        <span>模型选择</span>
+                      </div>
+                      <div className="action-row" style={{ display: 'flex', gap: '0.5rem' }}>
+                        <select
+                          value={aiSettings.modelId}
+                          onChange={e => setAISettings({ ...aiSettings, modelId: e.target.value })}
+                          style={{ flex: 1, padding: '0.5rem', border: '1px solid var(--border-color, #ccc)', borderRadius: '4px' }}
+                        >
+                          {aiSettings.modelId && !availableModels.includes(aiSettings.modelId) && (
+                            <option value={aiSettings.modelId}>{aiSettings.modelId}</option>
+                          )}
+                          {availableModels.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={handleLoadModels}
+                          disabled={isLoadingModels}
+                        >
+                          {isLoadingModels ? '获取中...' : '获取可用模型'}
+                        </button>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {aiResponse && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <pre className="result-pre" style={{ whiteSpace: 'pre-wrap' }}>{aiResponse}</pre>
+                  </div>
+                )}
+              </section>
+            </div>
           ) : null}
         </div>
       </div>

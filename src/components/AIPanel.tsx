@@ -7,11 +7,10 @@ import {
     loadCompatibilityHistory,
     loadDivinationHistory,
 } from '@/lib/history-records';
-import * as BaziEngine from '@/utils/bazi/engine';
+import { calculateFullBaziChart } from '@/lib/full-chart-engine';
 import { buildPromptFromConfig, getCompatibilityPrompt } from '@/utils/ai/aiPrompts';
 
-// @ts-ignore
-import '@/assets/ai-panel.css';
+
 
 type HistoryTab = 'personal' | 'compatibility' | 'divination';
 
@@ -89,7 +88,7 @@ export function AIPanel() {
         if (activeTab === 'personal') {
             const record = personalRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
-            const baziResult = BaziEngine.compute(record.input as any);
+            const baziResult = calculateFullBaziChart(record.input as any);
             // 使用 BAZI_AI_PROMPTS.single 中的 "ai-mingge-zonglun" 解读
             const promptObj = buildPromptFromConfig('请综合解读该命理信息。', {
                 id: 'ai-mingge-zonglun',
@@ -102,8 +101,8 @@ export function AIPanel() {
             const record = compatRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
 
-            const baziResult1 = BaziEngine.compute({ ...record.input, analysisMode: 'single' } as any);
-            const baziResult2 = BaziEngine.compute({
+            const baziResult1 = calculateFullBaziChart({ ...record.input, analysisMode: 'single' } as any);
+            const baziResult2 = calculateFullBaziChart({
                 ...record.input,
                 analysisMode: 'single',
                 name: record.input.partnerName,

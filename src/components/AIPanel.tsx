@@ -6,6 +6,8 @@ import {
     loadPersonalHistory,
     loadCompatibilityHistory,
     loadDivinationHistory,
+    loadAIReport,
+    saveAIReport,
 } from '@/lib/history-records';
 import { calculateFullBaziChart } from '@/lib/full-chart-engine';
 import { buildPromptFromConfig, getCompatibilityPrompt } from '@/utils/ai/aiPrompts';
@@ -28,7 +30,18 @@ export function AIPanel() {
     const [selectedRecordId, setSelectedRecordId] = useState<string>('');
     const [isInterpreting, setIsInterpreting] = useState(false);
     const [response, setResponse] = useState('');
+    const [showReport, setShowReport] = useState(false);
+    const [viewingReport, setViewingReport] = useState<string>('');
     const responseEndRef = useRef<HTMLDivElement>(null);
+
+    // 处理双击查看报告
+    const handleRecordDoubleClick = (record: any) => {
+        const report = loadAIReport(record.id);
+        if (report) {
+            setViewingReport(report);
+            setShowReport(true);
+        }
+    };
 
     useEffect(() => {
         setPersonalRecords(loadPersonalHistory());
@@ -132,11 +145,12 @@ export function AIPanel() {
         }
 
         // 这里告诉AI不再直接使用 ### 这种丑陋的Markdown标题格式
-        systemPrompt += `\n输出要求：请使用纯文本或极其简单的分段，请避免输出“### 标题”这种 Markdown 标题，如果你要分隔段落请使用带序号的文字即可。排版一定要优雅清新。`;
+        systemPrompt += `\n输出要求：请使用纯文本或极其简单的分段，请避免输出”### 标题”这种 Markdown 标题，如果你要分隔段落请使用带序号的文字即可。排版一定要优雅清新。`;
 
         setResponse('');
         setIsInterpreting(true);
         let currentResponse = '';
+        let finalReport = '';
 
         try {
             const generator = streamChatCompletion(settings, userPrompt, systemPrompt);
@@ -144,6 +158,15 @@ export function AIPanel() {
                 currentResponse += chunk;
                 setResponse(currentResponse);
             }
+            finalReport = currentResponse;
+
+            // 保存报告到本地
+            saveAIReport(selectedRecordId, finalReport);
+
+            // 刷新历史记录以更新显示
+            setPersonalRecords(loadPersonalHistory());
+            setCompatRecords(loadCompatibilityHistory());
+            setDivinationRecords(loadDivinationHistory());
         } catch (e: any) {
             alert(`解读过程中发生错误: ${e.message}`);
         } finally {
@@ -163,27 +186,33 @@ export function AIPanel() {
 
         return (
             <div className="ai-records-list">
-                {list.map((record) => (
-                    <button
-                        key={record.id}
-                        type="button"
-                        className={`ai-record-item ${selectedRecordId === record.id ? 'active' : ''}`}
-                        onClick={() => setSelectedRecordId(record.id)}
-                    >
-                        <div className="ai-record-title">
-                            {activeTab === 'divination' ? record.question : record.name}
-                        </div>
-                        <div className="ai-record-meta">
-                            {new Date(record.updatedAt).toLocaleString('zh-CN', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                            })}
-                        </div>
-                    </button>
-                ))}
+                {list.map((record) => {
+                    const hasReport = loadAIReport(record.id);
+                    return (
+                        <button
+                            key={record.id}
+                            type="button"
+                            className={`ai-record-item ${selectedRecordId === record.id ? 'active' : ''} ${hasReport ? 'has-report' : ''}`}
+                            onClick={() => setSelectedRecordId(record.id)}
+                            onDoubleClick={() => handleRecordDoubleClick(record)}
+                            title={hasReport ? '双击查看报告' : ''}
+                        >
+                            <div className="ai-record-title">
+                                {activeTab === 'divination' ? record.question : record.name}
+                                {hasReport && <span className="ai-record-badge">已解读</span>}
+                            </div>
+                            <div className="ai-record-meta">
+                                {new Date(record.updatedAt).toLocaleString('zh-CN', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
         );
     };
@@ -305,6 +334,26 @@ export function AIPanel() {
                             <ReactMarkdown>{response}</ReactMarkdown>
                         </div>
                         <div ref={responseEndRef} />
+                    </div>
+                )}
+
+                {showReport && (
+                    <div className="ai-report-modal" onClick={() => setShowReport(false)}>
+                        <div className="ai-report-modal-content" onClick={(e) => e.stopPropagation()}>
+                            <div className="ai-report-modal-header">
+                                <h3>AI 报告</h3>
+                                <button
+                                    type="button"
+                                    className="ai-report-modal-close"
+                                    onClick={() => setShowReport(false)}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="ai-report-modal-body">
+                                <ReactMarkdown>{viewingReport}</ReactMarkdown>
+                            </div>
+                        </div>
                     </div>
                 )}
             </section>

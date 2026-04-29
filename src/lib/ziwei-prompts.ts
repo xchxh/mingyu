@@ -130,7 +130,7 @@ function mapReportTypeLabel(reportType: string) {
     case 'chat':
       return '自由问答';
     default:
-      return 'AI 解读报告';
+      return '报告';
   }
 }
 

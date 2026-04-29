@@ -191,11 +191,7 @@ export function AIPanel() {
     return (
         <div className="form-wrapper ai-wrapper">
             <section className="person-section ai-panel">
-                <div className="person-section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h2>AI 解读模块</h2>
-                        <p>选择您的排盘记录以进行大模型自动分析</p>
-                    </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                     <button
                         type="button"
                         className="ai-settings-toggle-btn"

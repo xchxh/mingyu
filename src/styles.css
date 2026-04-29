@@ -5600,6 +5600,10 @@ div.form-actions.page-submit-actions {
   transition: all 0.2s;
 }
 
+.ai-record-item.has-report {
+  border-color: var(--accent);
+}
+
 .ai-record-item.active {
   border-color: var(--accent);
   background: linear-gradient(180deg, var(--surface-elevated), var(--surface-soft));
@@ -5609,7 +5613,19 @@ div.form-actions.page-submit-actions {
   border-color: var(--accent);
 }
 
+.ai-record-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--surface-elevated);
+  background: var(--accent);
+  border-radius: 4px;
+}
+
 .ai-record-title {
+  display: flex;
+  align-items: center;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
@@ -5649,6 +5665,79 @@ div.form-actions.page-submit-actions {
 }
 
 .ai-markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* AI 报告弹窗样式 */
+.ai-report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--backdrop-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ai-report-modal-content {
+  max-width: 90%;
+  max-height: 85%;
+  width: 600px;
+  background: var(--surface-elevated);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-report-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.ai-report-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.ai-report-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.ai-report-modal-close:hover {
+  background: var(--surface-soft);
+  color: var(--text-primary);
+}
+
+.ai-report-modal-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.ai-report-modal-body p {
+  margin-bottom: 8px;
+}
+
+.ai-report-modal-body p:last-child {
   margin-bottom: 0;
 }
 

@@ -4,6 +4,7 @@ import type { DivinationDraft, DivinationSession } from '@/lib/divination/engine
 const PERSONAL_HISTORY_STORAGE_KEY = 'prompt_studio_personal_history_v1';
 const COMPATIBILITY_HISTORY_STORAGE_KEY = 'prompt_studio_compatibility_history_v1';
 const DIVINATION_HISTORY_STORAGE_KEY = 'prompt_studio_divination_history_v1';
+const AI_REPORT_STORAGE_KEY = 'prompt_studio_ai_report_v1';
 const MAX_HISTORY_RECORDS = 20;
 
 type PersonalHistoryRecord = {
@@ -14,6 +15,7 @@ type PersonalHistoryRecord = {
   birthText: string;
   input: QueryInputState;
   updatedAt: string;
+  aiReport?: string;
 };
 
 type CompatibilityHistoryRecord = {
@@ -24,6 +26,7 @@ type CompatibilityHistoryRecord = {
   partnerName: string;
   input: QueryInputState;
   updatedAt: string;
+  aiReport?: string;
 };
 
 export type DivinationHistoryRecord = {
@@ -34,6 +37,13 @@ export type DivinationHistoryRecord = {
   method: DivinationSession['method'];
   draft: DivinationDraft;
   session: DivinationSession;
+  updatedAt: string;
+  aiReport?: string;
+};
+
+type AIReportRecord = {
+  recordId: string;
+  report: string;
   updatedAt: string;
 };
 
@@ -228,4 +238,66 @@ export function removeDivinationHistory(id: string) {
   const next = loadDivinationHistory().filter((item) => item.id !== id);
   writeRecords(DIVINATION_HISTORY_STORAGE_KEY, next);
   return next;
+}
+
+// AI 报告存储相关函数
+export function loadAIReport(recordId: string): string | null {
+  const storage = getStorage();
+  if (!storage) return null;
+
+  try {
+    const data = storage.getItem(AI_REPORT_STORAGE_KEY);
+    if (!data) return null;
+
+    const reports: AIReportRecord[] = JSON.parse(data);
+    const report = reports.find(r => r.recordId === recordId);
+    return report?.report || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveAIReport(recordId: string, report: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+
+  try {
+    const data = storage.getItem(AI_REPORT_STORAGE_KEY);
+    const reports: AIReportRecord[] = data ? JSON.parse(data) : [];
+
+    // 更新或添加报告
+    const existingIndex = reports.findIndex(r => r.recordId === recordId);
+    const newReport: AIReportRecord = {
+      recordId,
+      report,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existingIndex >= 0) {
+      reports[existingIndex] = newReport;
+    } else {
+      reports.unshift(newReport);
+    }
+
+    // 只保留最近50条报告
+    storage.setItem(AI_REPORT_STORAGE_KEY, JSON.stringify(reports.slice(0, 50)));
+  } catch (e) {
+    console.error('保存AI报告失败:', e);
+  }
+}
+
+export function removeAIReport(recordId: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+
+  try {
+    const data = storage.getItem(AI_REPORT_STORAGE_KEY);
+    if (!data) return;
+
+    const reports: AIReportRecord[] = JSON.parse(data);
+    const next = reports.filter(r => r.recordId !== recordId);
+    storage.setItem(AI_REPORT_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // 忽略错误
+  }
 }

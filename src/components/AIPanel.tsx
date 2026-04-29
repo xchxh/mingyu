@@ -139,17 +139,11 @@ export function AIPanel() {
         let currentResponse = '';
 
         try {
-            await streamChatCompletion(
-                settings.baseUrl,
-                settings.apiKey,
-                settings.modelId,
-                systemPrompt,
-                userPrompt,
-                (chunk) => {
-                    currentResponse += chunk;
-                    setResponse(currentResponse);
-                }
-            );
+            const generator = streamChatCompletion(settings, userPrompt, systemPrompt);
+            for await (const chunk of generator) {
+                currentResponse += chunk;
+                setResponse(currentResponse);
+            }
         } catch (e: any) {
             alert(`解读过程中发生错误: ${e.message}`);
         } finally {
@@ -220,7 +214,7 @@ export function AIPanel() {
                                     type="text"
                                     className="form-input"
                                     placeholder="https://api.openai.com/v1"
-                                    value={settings.baseUrl}
+                                    value={settings.baseUrl || ''}
                                     onChange={(e) => updateSettings({ baseUrl: e.target.value })}
                                 />
                             </div>
@@ -232,7 +226,7 @@ export function AIPanel() {
                                     type="password"
                                     className="form-input"
                                     placeholder="sk-..."
-                                    value={settings.apiKey}
+                                    value={settings.apiKey || ''}
                                     onChange={(e) => updateSettings({ apiKey: e.target.value })}
                                 />
                             </div>

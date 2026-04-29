@@ -6,7 +6,12 @@ export function useAISettings() {
     const [settings, setSettings] = useState<AISettings>(() => {
         try {
             const saved = localStorage.getItem('ai-settings');
-            if (saved) return JSON.parse(saved);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') {
+                    return { ...defaultAISettings, ...parsed };
+                }
+            }
         } catch { }
         return defaultAISettings;
     });
@@ -16,6 +21,10 @@ export function useAISettings() {
             localStorage.setItem('ai-settings', JSON.stringify(settings));
         } catch { }
     }, [settings]);
+    // 包装 setSettings 以支持对象式更新
+    const updateSettings = (partial: Partial<AISettings>) => {
+        setSettings(prev => ({ ...prev, ...partial }));
+    };
 
-    return [settings, setSettings] as const;
+    return [settings, updateSettings] as const;
 }

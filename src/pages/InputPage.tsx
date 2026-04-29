@@ -58,16 +58,11 @@ function getPersonValue(form: QueryInputState, role: PersonRole, key: keyof type
 }
 
 type BirthPlaceCascadeModule = typeof import('@/utils/core/birthPlaceCascade');
-type InputEntryMode = 'single' | 'compatibility' | 'divination' | 'ai';
+type InputEntryMode = 'single' | 'compatibility' | 'divination';
 
 const LazyDivinationPanel = lazy(async () => {
   const module = await import('@/components/DivinationPanel');
   return { default: module.DivinationPanel };
-});
-
-const LazyAIPanel = lazy(async () => {
-  const module = await import('@/components/AIPanel');
-  return { default: module.AIPanel };
 });
 
 export function InputPage() {
@@ -115,10 +110,11 @@ export function InputPage() {
   }
 
   useEffect(() => {
-    const nextEntryMode =
-      searchParams.get('mode') === 'compatibility'
+    const modeParam = searchParams.get('mode');
+    const nextEntryMode: InputEntryMode =
+      modeParam === 'compatibility'
         ? 'compatibility'
-        : searchParams.get('mode') === 'divination'
+        : modeParam === 'divination'
           ? 'divination'
           : 'single';
     setEntryMode(nextEntryMode);
@@ -479,7 +475,7 @@ export function InputPage() {
   function updateEntryMode(value: InputEntryMode) {
     setEntryMode(value);
 
-    if (value !== 'divination' && value !== 'ai') {
+    if (value !== 'divination') {
       updateField('analysisMode', value);
     }
 
@@ -736,7 +732,6 @@ export function InputPage() {
                 { label: '个人', value: 'single' as const },
                 { label: '合盘', value: 'compatibility' as const },
                 { label: '占卜', value: 'divination' as const },
-                { label: 'AI模块', value: 'ai' as const },
               ]}
               onChange={updateEntryMode}
             />
@@ -744,11 +739,7 @@ export function InputPage() {
         </div>
 
         <div className="analysis-view">
-          {entryMode === 'ai' ? (
-            <Suspense fallback={divinationPanelFallback}>
-              <LazyAIPanel />
-            </Suspense>
-          ) : entryMode === 'divination' ? (
+          {entryMode === 'divination' ? (
             <Suspense fallback={divinationPanelFallback}>
               <LazyDivinationPanel />
             </Suspense>

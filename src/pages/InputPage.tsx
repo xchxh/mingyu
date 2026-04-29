@@ -739,7 +739,7 @@ export function InputPage() {
                 { label: '个人', value: 'single' as const },
                 { label: '合盘', value: 'compatibility' as const },
                 { label: '占卜', value: 'divination' as const },
-                { label: 'AI模块', value: 'ai' as const },
+                { label: 'AI', value: 'ai' as const },
               ]}
               onChange={updateEntryMode}
             />

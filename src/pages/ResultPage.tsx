@@ -1062,29 +1062,38 @@ function ZiweiScopeModal(props: {
     if (!yearOptions.length) {
       return;
     }
+    if (yearOptions.some((item) => item.dateStr === draftYearDateStr)) {
+      return;
+    }
 
-    const matchedDateStr = findZiweiYearOptionDate(yearOptions, draftDayDateStr || draftYearDateStr);
+    const matchedDateStr = findZiweiYearOptionDate(yearOptions, draftYearDateStr);
     if (matchedDateStr && matchedDateStr !== draftYearDateStr) {
       setDraftYearDateStr(matchedDateStr);
     }
-  }, [draftDayDateStr, draftYearDateStr, yearOptions]);
+  }, [draftYearDateStr, yearOptions]);
 
   useEffect(() => {
     if (!monthOptions.length) {
       return;
     }
+    if (monthOptions.some((item) => item.dateStr === draftMonthDateStr)) {
+      return;
+    }
 
     const matchedDateStr = findZiweiMonthOptionDate(
       monthOptions,
-      draftDayDateStr || draftMonthDateStr || draftYearDateStr,
+      draftMonthDateStr || draftYearDateStr,
     );
     if (matchedDateStr && matchedDateStr !== draftMonthDateStr) {
       setDraftMonthDateStr(matchedDateStr);
     }
-  }, [draftDayDateStr, draftMonthDateStr, draftYearDateStr, monthOptions]);
+  }, [draftMonthDateStr, draftYearDateStr, monthOptions]);
 
   useEffect(() => {
     if (!dayOptions.length) {
+      return;
+    }
+    if (dayOptions.some((item) => item.dateStr === draftDayDateStr)) {
       return;
     }
 
@@ -2350,7 +2359,7 @@ export function ResultPage() {
     isUnknownTimeIndex(inputState.partnerTimeIndex);
   const hasUnknownBirthTime = primaryHasUnknownTime || partnerHasUnknownTime;
   const shouldLoadZiweiPromptPayload =
-    mountedTabs.prompt && promptState.promptSource === 'ziwei' && !mountedTabs.ziwei;
+    mountedTabs.prompt && promptState.promptSource === 'ziwei';
   const primaryThreePillarsState = useMemo(() => {
     if (!primaryHasUnknownTime) {
       return {
@@ -2451,6 +2460,10 @@ export function ResultPage() {
         day: inputState.partnerDay,
         timeIndex: inputState.partnerTimeIndex,
         isLeapMonth: inputState.partnerIsLeapMonth,
+        useTrueSolarTime: inputState.partnerUseTrueSolarTime,
+        birthHour: inputState.partnerBirthHour,
+        birthMinute: inputState.partnerBirthMinute,
+        birthLongitude: inputState.partnerBirthLongitude,
       });
     } catch {
       return null;

@@ -1020,11 +1020,11 @@ function analyzeFuxinFanxin(pillars: BaziChartResult['pillars']): FuxinAnalysis 
     ['时柱', pillars.hour],
   ]
 
-  // 天干相克映射（七杀关系：甲庚互克、乙辛互克、丙壬互克、丁癸互克、戊甲互克、己乙互克）
+  // 天干相克映射（七杀关系：甲→庚、乙→辛、丙→壬、丁→癸、戊→甲、己→乙、庚→丙、辛→丁、壬→戊、癸→己）
   const ganKeMap: Record<string, string> = {
-    '甲': '庚', '庚': '甲', '乙': '辛', '辛': '乙',
-    '丙': '壬', '壬': '丙', '丁': '癸', '癸': '丁',
-    '戊': '甲', '甲': '戊', '己': '乙', '乙': '己',
+    '甲': '庚', '乙': '辛', '丙': '壬', '丁': '癸',
+    '戊': '甲', '己': '乙', '庚': '丙', '辛': '丁',
+    '壬': '戊', '癸': '己',
   }
 
   // 地支相冲映射（复用全局 ZHI_CHONG_MAP）
@@ -1042,7 +1042,7 @@ function analyzeFuxinFanxin(pillars: BaziChartResult['pillars']): FuxinAnalysis 
       }
 
       // 反吟：天克地冲（天干相克且地支相冲）
-      const ganClash = ganKeMap[pillar1.gan] === pillar2.gan
+      const ganClash = ganKeMap[pillar1.gan] === pillar2.gan || ganKeMap[pillar2.gan] === pillar1.gan
       const zhiClash = zhiChongMap[pillar1.zhi] === pillar2.zhi
       if (ganClash && zhiClash) {
         result.hasFanxin = true

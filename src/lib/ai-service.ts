@@ -38,7 +38,7 @@ export async function* streamChatCompletion(
 ): AsyncGenerator<string, void, unknown> {
   const normalizedBaseUrl = settings.baseUrl.replace(/\/+$/, '');
   const finalBaseUrl = normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`;
-  
+
   const messages = [];
   if (systemPrompt) {
     messages.push({ role: 'system', content: systemPrompt });

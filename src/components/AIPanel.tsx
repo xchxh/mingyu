@@ -32,7 +32,14 @@ export function AIPanel() {
     const [response, setResponse] = useState('');
     const [showReport, setShowReport] = useState(false);
     const [viewingReport, setViewingReport] = useState<string>('');
+    const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
     const responseEndRef = useRef<HTMLDivElement>(null);
+
+    // 显示状态消息（替代 alert）
+    const showStatus = (type: 'success' | 'error' | 'info', message: string) => {
+        setStatusMessage({ type, message });
+        setTimeout(() => setStatusMessage(null), 3000);
+    };
 
     // 处理双击查看报告
     const handleRecordDoubleClick = (record: any) => {
@@ -64,7 +71,7 @@ export function AIPanel() {
         const baseUrl = (settings.baseUrl || '').trim();
         const key = (settings.apiKey || '').trim();
         if (!baseUrl || !key) {
-            alert('请输入 Base URL 和 API Key');
+            showStatus('error', '请输入 Base URL 和 API Key');
             return;
         }
         setIsFetchingModels(true);
@@ -76,9 +83,9 @@ export function AIPanel() {
             } else if (data.length > 0 && !data.find((m: any) => m.id === settings.modelId)) {
                 updateSettings({ modelId: data[0].id });
             }
-            alert('成功获取可用模型！');
+            showStatus('success', data.length > 0 ? `成功获取 ${data.length} 个可用模型！` : '未获取到可用模型');
         } catch (e: any) {
-            alert(`获取失败：${e.message}`);
+            showStatus('error', `获取失败：${e.message}`);
         } finally {
             setIsFetchingModels(false);
         }
@@ -86,12 +93,12 @@ export function AIPanel() {
 
     const handleSendToAI = async () => {
         if (!settings.baseUrl || !settings.apiKey || !settings.modelId) {
-            alert('请打开AI配置补全 Base URL、API Key 与 模型信息！');
+            showStatus('error', '请先配置 AI：填写 Base URL、API Key 并加载模型');
             setConfigOpen(true);
             return;
         }
         if (!selectedRecordId) {
-            alert('请先选择要解读的历史记录！');
+            showStatus('error', '请先选择要解读的历史记录');
             return;
         }
 
@@ -168,7 +175,7 @@ export function AIPanel() {
             setCompatRecords(loadCompatibilityHistory());
             setDivinationRecords(loadDivinationHistory());
         } catch (e: any) {
-            alert(`解读过程中发生错误: ${e.message}`);
+            showStatus('error', `解读失败：${e.message}`);
         } finally {
             setIsInterpreting(false);
         }
@@ -219,6 +226,11 @@ export function AIPanel() {
 
     return (
         <div className="form-wrapper ai-wrapper">
+            {statusMessage && (
+                <div className={`ai-status-message ${statusMessage.type}`}>
+                    {statusMessage.message}
+                </div>
+            )}
             <section className="person-section ai-panel">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                     <button

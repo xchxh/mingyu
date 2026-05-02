@@ -5511,6 +5511,45 @@ div.form-actions.page-submit-actions {
   }
 }
 
+/* AI 状态消息样式 */
+.ai-status-message {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  animation: aiStatusSlideIn 0.3s ease;
+}
+
+.ai-status-message.success {
+  background: #10b981;
+  color: white;
+}
+
+.ai-status-message.error {
+  background: #ef4444;
+  color: white;
+}
+
+.ai-status-message.info {
+  background: #3b82f6;
+  color: white;
+}
+
+@keyframes aiStatusSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 /* AI 配置面板样式 */
 .ai-settings-card {
   padding: 16px;

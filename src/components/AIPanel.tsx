@@ -109,51 +109,86 @@ export function AIPanel() {
             const record = personalRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
 
-            // 检查 timeIndex 是否有效，无效则设为默认值 1（子时）
-            const inputWithDefault = {
-                ...record.input,
-                timeIndex: record.input.timeIndex ?? 1,
-            };
-            const baziResult = calculateFullBaziChart(inputWithDefault as any);
-            // 使用 BAZI_AI_PROMPTS.single 中的 "ai-mingge-zonglun" 解读
-            const promptObj = buildPromptFromConfig('请综合解读该命理信息。', {
-                id: 'ai-mingge-zonglun',
-                prompt: '综合解读',
-                scene: 'general'
-            }, baziResult as any);
-            systemPrompt = promptObj.system;
-            userPrompt = promptObj.user;
+            // 检查是否是未知时辰（-1 表示未知时辰）
+            const hasUnknownTime = record.input.timeIndex == null || record.input.timeIndex === -1;
+
+            if (hasUnknownTime) {
+                // 未知时辰时，只使用三柱信息
+                systemPrompt = '你是一个资深命理师。';
+                userPrompt = `请根据以下三柱信息进行综合分析（时辰未知，应保守估计）：
+
+${record.input.year}年 ${record.input.month}月 ${record.input.day}日
+性别：${record.input.gender === 'male' ? '男' : '女'}
+
+请综合解读该命理信息，时柱未知的情况下应保守估计，重点分析年柱、月柱、日柱的影响。`;
+            } else {
+                // 已知时辰，正常计算
+                const inputWithDefault = {
+                    ...record.input,
+                    timeIndex: record.input.timeIndex,
+                };
+                const baziResult = calculateFullBaziChart(inputWithDefault as any);
+                const promptObj = buildPromptFromConfig('请综合解读该命理信息。', {
+                    id: 'ai-mingge-zonglun',
+                    prompt: '综合解读',
+                    scene: 'general'
+                }, baziResult as any);
+                systemPrompt = promptObj.system;
+                userPrompt = promptObj.user;
+            }
         } else if (activeTab === 'compatibility') {
             const record = compatRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
 
-            // 确保 timeIndex 有效
-            const inputWithDefault = {
-                ...record.input,
-                timeIndex: record.input.timeIndex ?? 1,
-            };
-            const baziResult1 = calculateFullBaziChart({ ...inputWithDefault, analysisMode: 'single' } as any);
-            const baziResult2 = calculateFullBaziChart({
-                ...inputWithDefault,
-                analysisMode: 'single',
-                name: record.input.partnerName,
-                gender: record.input.partnerGender,
-                year: record.input.partnerYear,
-                month: record.input.partnerMonth,
-                day: record.input.partnerDay,
-                timeIndex: record.input.partnerTimeIndex ?? 1,
-                isLeapMonth: record.input.partnerIsLeapMonth,
-                useTrueSolarTime: record.input.partnerUseTrueSolarTime,
-                birthHour: record.input.partnerBirthHour,
-                birthMinute: record.input.partnerBirthMinute,
-                birthPlace: record.input.partnerBirthPlace,
-                birthLongitude: record.input.partnerBirthLongitude,
-                dateType: record.input.partnerDateType,
-            } as any);
+            // 检查双方时辰是否未知
+            const hasUnknownTime = record.input.timeIndex == null || record.input.timeIndex === -1;
+            const hasUnknownPartnerTime = record.input.partnerTimeIndex == null || record.input.partnerTimeIndex === -1;
 
-            const promptObj = getCompatibilityPrompt('请做合盘分析。', baziResult1 as any, baziResult2 as any, 'marriage');
-            systemPrompt = promptObj.system;
-            userPrompt = promptObj.user;
+            if (hasUnknownTime || hasUnknownPartnerTime) {
+                // 至少一方时辰未知，使用简化合盘分析
+                systemPrompt = '你是一个资深命理师。';
+                userPrompt = `请进行合盘分析（至少一方时辰未知，应保守估计）：
+
+【主盘】
+${record.input.year}年 ${record.input.month}月 ${record.input.day}日
+性别：${record.input.gender === 'male' ? '男' : '女'}
+时辰：${hasUnknownTime ? '未知' : record.input.timeIndex}时
+
+【副盘】
+${record.input.partnerYear}年 ${record.input.partnerMonth}月 ${record.input.partnerDay}日
+性别：${record.input.partnerGender === 'male' ? '男' : '女'}
+时辰：${hasUnknownPartnerTime ? '未知' : record.input.partnerTimeIndex}时
+
+请做合盘分析，时柱未知的情况下应保守估计。`;
+            } else {
+                // 双方时辰都已知
+                const inputWithDefault = {
+                    ...record.input,
+                    timeIndex: record.input.timeIndex,
+                };
+                const baziResult1 = calculateFullBaziChart({ ...inputWithDefault, analysisMode: 'single' } as any);
+                const baziResult2 = calculateFullBaziChart({
+                    ...inputWithDefault,
+                    analysisMode: 'single',
+                    name: record.input.partnerName,
+                    gender: record.input.partnerGender,
+                    year: record.input.partnerYear,
+                    month: record.input.partnerMonth,
+                    day: record.input.partnerDay,
+                    timeIndex: record.input.partnerTimeIndex,
+                    isLeapMonth: record.input.partnerIsLeapMonth,
+                    useTrueSolarTime: record.input.partnerUseTrueSolarTime,
+                    birthHour: record.input.partnerBirthHour,
+                    birthMinute: record.input.partnerBirthMinute,
+                    birthPlace: record.input.partnerBirthPlace,
+                    birthLongitude: record.input.partnerBirthLongitude,
+                    dateType: record.input.partnerDateType,
+                } as any);
+
+                const promptObj = getCompatibilityPrompt('请做合盘分析。', baziResult1 as any, baziResult2 as any, 'marriage');
+                systemPrompt = promptObj.system;
+                userPrompt = promptObj.user;
+            }
         } else if (activeTab === 'divination') {
             const record = divinationRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;

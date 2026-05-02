@@ -108,7 +108,13 @@ export function AIPanel() {
         if (activeTab === 'personal') {
             const record = personalRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
-            const baziResult = calculateFullBaziChart(record.input as any);
+
+            // 检查 timeIndex 是否有效，无效则设为默认值 1（子时）
+            const inputWithDefault = {
+                ...record.input,
+                timeIndex: record.input.timeIndex ?? 1,
+            };
+            const baziResult = calculateFullBaziChart(inputWithDefault as any);
             // 使用 BAZI_AI_PROMPTS.single 中的 "ai-mingge-zonglun" 解读
             const promptObj = buildPromptFromConfig('请综合解读该命理信息。', {
                 id: 'ai-mingge-zonglun',
@@ -121,16 +127,21 @@ export function AIPanel() {
             const record = compatRecords.find((r) => r.id === selectedRecordId);
             if (!record) return;
 
-            const baziResult1 = calculateFullBaziChart({ ...record.input, analysisMode: 'single' } as any);
-            const baziResult2 = calculateFullBaziChart({
+            // 确保 timeIndex 有效
+            const inputWithDefault = {
                 ...record.input,
+                timeIndex: record.input.timeIndex ?? 1,
+            };
+            const baziResult1 = calculateFullBaziChart({ ...inputWithDefault, analysisMode: 'single' } as any);
+            const baziResult2 = calculateFullBaziChart({
+                ...inputWithDefault,
                 analysisMode: 'single',
                 name: record.input.partnerName,
                 gender: record.input.partnerGender,
                 year: record.input.partnerYear,
                 month: record.input.partnerMonth,
                 day: record.input.partnerDay,
-                timeIndex: record.input.partnerTimeIndex,
+                timeIndex: record.input.partnerTimeIndex ?? 1,
                 isLeapMonth: record.input.partnerIsLeapMonth,
                 useTrueSolarTime: record.input.partnerUseTrueSolarTime,
                 birthHour: record.input.partnerBirthHour,
